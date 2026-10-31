@@ -24,7 +24,7 @@ export function Writeup({ slug, name, wr, collapsed = false }) {
       {open && <div role="group" aria-label="Writeup length" className="flex gap-1">{LEN.map(([k, l]) => <button key={k} type="button" data-len={k} aria-pressed={len === k} onClick={() => setLen(k)} className={`min-h-9 rounded-full border px-3 text-sm ${len === k ? "border-action bg-action-fill text-white" : "border-line"}`}>{l}</button>)}</div>}
     </div>
     {open && (prof === undefined && !wr?.[len] ? <p role="status" className="mt-2 text-sm text-ink-3">Loading…</p> : e ? <div data-writeup={len}>
-      <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-ink-2" data-writeup-text>{e.text}</p>
+      <div className="mt-2 max-w-prose space-y-3 rounded-md border border-line bg-surface px-4 py-4 text-justify text-sm leading-relaxed text-ink-2 shadow-sm hyphens-auto [text-wrap:pretty] sm:px-6" data-writeup-text>{e.text.split(/\n\s*\n|\n/).filter((p) => p.trim()).map((p, i) => <p key={i}>{p}</p>)}</div>
       <p className="mt-2 text-xs text-ink-3" data-writeup-label>{e.source === "human" ? "Edited by a person." : <>{AI_NOTE}<AiLabel /></>}{e.reviewed ? " Reviewed." : " Not yet reviewed."} {e.note || ""}</p>
       <div className="mt-2 flex flex-wrap items-center gap-2 print:hidden"><button type="button" onClick={copy} className="min-h-9 rounded-full border border-line px-3 text-sm hover:bg-navy-soft">Copy</button><button type="button" onClick={print} className="min-h-9 rounded-full border border-line px-3 text-sm hover:bg-navy-soft">Print</button><span role="status" className="text-sm text-ink-3">{msg}</span></div>
     </div> : <p className="mt-2 text-sm text-ink-3" data-writeup-absent>Writeup not generated yet.</p>)}
