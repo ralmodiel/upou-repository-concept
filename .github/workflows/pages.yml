@@ -10,9 +10,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions: { contents: read } # least privilege: the build job can only read the repo
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { persist-credentials: false }
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with: { node-version: 24, cache: npm, cache-dependency-path: web/package-lock.json }
       - run: npm ci --ignore-scripts && node scripts/deps.mjs # npm ci fails on a lockfile out of sync; no install scripts run; no secrets in this step
         working-directory: web
@@ -24,7 +24,7 @@ jobs:
         env: { SITE_URL: "${{ vars.SITE_URL }}", ADV_USER: "${{ secrets.ADV_USER }}", ADV_PASS: "${{ secrets.ADV_PASS }}" } # the two secrets exist only in this step (the build encrypts the adviser data); never echoed, no set -x. SITE_URL: repository variable; unset = placeholder URLs
       - run: npm sbom --sbom-format cyclonedx > dist/sbom.cdx.json && node scripts/supply.mjs dist/sbom.cdx.json # CycloneDX SBOM shipped with the site
         working-directory: web
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with: { path: web/dist }
   deploy:
     needs: build
@@ -33,4 +33,4 @@ jobs:
     environment: { name: github-pages, url: "${{ steps.d.outputs.page_url }}" }
     steps:
       - id: d
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
