@@ -1,0 +1,35 @@
+name: Deploy to GitHub Pages
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions: {}
+concurrency: { group: pages, cancel-in-progress: true }
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions: { contents: read, id-token: write, attestations: write } # id-token/attestations: build provenance only
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: npm, cache-dependency-path: web/package-lock.json }
+      - run: npm ci --ignore-scripts && node scripts/deps.mjs # npm ci fails on a lockfile out of sync; no install scripts run
+        working-directory: web
+      - run: npm run build:ci && node scripts/headers.mjs && node scripts/bundle.mjs # ciphertext-only: builds from the committed web/sealed snapshot, needs no secrets; the guard fails on any plaintext adviser file in dist
+        working-directory: web
+        env: { SITE_URL: "${{ vars.SITE_URL }}" } # repository variable; unset = placeholder URLs
+      - run: npm sbom --sbom-format cyclonedx > dist/sbom.cdx.json && node scripts/supply.mjs dist/sbom.cdx.json # CycloneDX SBOM shipped with the site
+        working-directory: web
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: web/dist }
+      - uses: actions/attest-build-provenance@v2 # signed SLSA provenance for the exact Pages tarball
+        with: { subject-path: "${{ runner.temp }}/artifact.tar" }
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions: { pages: write, id-token: write }
+    environment: { name: github-pages, url: "${{ steps.d.outputs.page_url }}" }
+    steps:
+      - id: d
+        uses: actions/deploy-pages@v4

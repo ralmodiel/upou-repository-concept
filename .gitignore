@@ -1,0 +1,43 @@
+.venv/
+/data/
+__pycache__/
+web/node_modules/
+web/dist/
+.env*
+.DS_Store
+.idea/
+shots/
+*.log
+.next/
+build/
+coverage/
+
+/scripts/
+node_modules/
+dist/
+.claude/
+.mcp.json
+.aix/
+
+# thesis full-text passages (copyright): built locally by passages.py, never committed
+web/public/index/passages.json
+web/.tmp/
+
+# adviser plaintext: lives only on the author's machine. Git holds the sealed snapshot web/sealed/ (ciphertext + scrubbed
+# articles/faqs), refreshed with: cd web && ADV_USER=.. ADV_PASS=.. node scripts/seal-snapshot.mjs  (see docs/access.md)
+web/data/
+web/public/index/articles.json
+web/public/index/faqs.json
+web/public/index/people.json
+web/public/index/people.bin
+web/public/index/international.json
+web/public/index/springer.json
+web/public/index/ijodel/
+web/public/index/profiles/
+web/public/faculty/*.json
+!web/public/faculty/example-surname-and-title-change.json
+# build:ci copies web/sealed/a here (use-sealed.mjs)
+web/public/index/a/
+
+# crawling + local-LLM pipeline scripts: run locally, never committed
+/*.py
