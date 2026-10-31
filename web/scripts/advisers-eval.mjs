@@ -1,7 +1,7 @@
 // Script-computed checks of the /advisers logic on the real data (public/index) and fixtures. Prints one JSON object; used by ../adviser_check.py.
 import { readFileSync } from "fs";
 import { makeCtx, buildPeople, analyze, panel, subUniverse, discover, badge, badges, canChair, ijScore } from "../src/advisers.js";
-import { W, CAP, contrib, trackRaw } from "../src/scoring.js";
+import { W, contrib, trackRaw } from "../src/scoring.js";
 const rd = (f) => JSON.parse(readFileSync(new URL("../public/index/" + f, import.meta.url)));
 const norm = (a) => { a.year = +a.year || 0; for (const k of ["authors", "subjects", "categories", "subtopics", "advisers"]) a[k] = a[k] || []; a.abstract ||= ""; return a; };
 const arts = rd("articles.json").map(norm), raw = rd("people.json"), ctx = makeCtx(arts), ij = JSON.parse(readFileSync(new URL("../public/faculty/ijodel-articles.json", import.meta.url))).map((a) => ({ ...a, year: +a.year || 0 })), intl = rd("international.json").items;
@@ -43,7 +43,7 @@ let dn = 0; subs.slice(0, 10).forEach((s) => { const d = discover(ctx, arts, { k
   d.tags.forEach(([t, n, y]) => { const k = m.filter((a) => a.subjects.includes(t) || a.subtopics.includes(t)); if (k.length !== n || Math.max(...k.map((a) => a.year)) !== y) bad(`tag count ${s}/${t}`); dn++; });
   d.gaps.forEach(([a, b, , , n]) => { const k = m.filter((x) => (x.subjects.includes(a) || x.subtopics.includes(a)) && (x.subjects.includes(b) || x.subtopics.includes(b))).length; if (k !== n || n > 1) bad(`gap ${a}/${b}`); dn++; }); });
 out.discovery = { checked: dn };
-// 6 weight order (fixtures): international > own > advisee at equal counts; log-capped; recency; chair = track record
+// 6 weight order (fixtures): international > own > advisee at equal counts; capped; recency; chair = match quality, not thesis count
 { const A = (id, y, st = "") => ({ id, year: y, title: "alpha topic", abstract: "", subjects: [], subtopics: ["T"], categories: [] }), fx = [A("a1", 2024), A("a2", 2024), A("a3", 2024), A("a4", 2024), A("o1", 2024), A("i1", 2024), A("old1", 2015), A("old2", 2015), A("new1", 2024)];
   const fctx = makeCtx(fx), mk = (n, o) => ({ n, s: n, adv: [], aut: [], ...o }), topic = [{ k: "subtopic", v: "T" }];
   const ijx = [{ id: "5", title: "alpha", year: 2024, subjects: [], categories: ["T"], subtopics: ["T"] }];
@@ -52,13 +52,17 @@ out.discovery = { checked: dn };
   if (!(sc.INTL > sc.OWN && sc.OWN > sc.ADV)) bad("weight order intl > own > advisee at equal counts: " + JSON.stringify(sc));
   if (!(sc.IJ > sc.OWN)) bad("IJODeL article (international) should outweigh an own work: " + JSON.stringify(sc));
   if (sc.NOTINTL !== sc.OWN) bad("not_international override should make an international own work an ordinary own work");
-  if (!(sc.ADVMANY > sc.ADV && sc.ADVMANY <= W.adv + 1e-9)) bad("advisee source must grow with count but stay capped at its weight");
+  if (!(sc.ADVMANY > sc.ADV && sc.ADVMANY <= W.adv + 1e-9)) bad("advisee source: the top 3 matches count, capped at its weight");
   if (!(contrib(1e6, "adv") <= W.adv + 1e-9 && W.intl > W.own && W.own > W.adv)) bad("log cap / weight constants");
   // chair: equal topic match, more and more recent advising wins; new and former never chair unless includeFormer
   const cx = (n, ids, st) => mk(n, { adv: ids, st });
   const ch = buildPeople([cx("MORE", ["a1", "a2", "a3"]), cx("LESS", ["a4"]), cx("OLDER", ["old1", "old2", "new1"].slice(0, 2)), cx("NEWF", [], "new"), cx("FORMER", ["a1", "a2", "a3", "a4"], "former")], fx, 2024);
   const rows = analyze(ch, fctx, topic, { all: true }), by = Object.fromEntries(rows.map((r) => [r.p.name, r]));
-  if (!(by.MORE.chair > by.LESS.chair)) bad("chair: more advising should beat less at equal match");
+  if (!(by.MORE.chair > by.LESS.chair)) bad("chair: three matching theses should beat one at equal match per thesis");
+  { const T = (id, t) => ({ id, year: 2024, title: t, abstract: "", subjects: [], subtopics: [], categories: [] }), q = [{ k: "text", v: "mangrove carbon" }]; // quality of match beats number of theses
+    const fx2 = [T("f1", "mangrove carbon stocks"), T("f2", "blue carbon in mangrove forests"), ...Array.from({ length: 20 }, (_, i) => T("w" + i, "carbon pricing policy " + i))];
+    const r2 = analyze(buildPeople([mk("FEW", { adv: ["f1", "f2"] }), mk("MANY", { adv: fx2.slice(2).map((a) => a.id) })], fx2, 2024), makeCtx(fx2), q, { all: true });
+    if (r2[0].p.name !== "FEW" || panel(r2, q, [], { size: 1 }).members[0].row.p.name !== "FEW") bad("few highly relevant theses should outrank and chair over many weakly relevant ones: " + r2.map((r) => r.p.name + " " + r.total.toFixed(2))); }
   if (!(by.LESS.chair > by.OLDER.chair || by.LESS.p.trackN > by.OLDER.p.trackN)) bad("chair: recent advising should beat older at equal count");
   const pm = panel(rows, topic, [], { size: 3 }); if (pm.members[0].row.p.name === "FORMER" || pm.members.some((m) => m.row.p.name === "FORMER")) bad("former faculty in a suggested panel without includeFormer");
   if (!panel(rows, topic, [], { size: 3, includeFormer: true }).members.some((m) => m.row.p.name === "FORMER")) bad("includeFormer should allow former faculty");

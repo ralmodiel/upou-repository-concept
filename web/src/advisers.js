@@ -2,7 +2,7 @@
 // A person = an adviser (from the approval sheet) and/or the author of their own articles. Expertise = topics of the items they advised or wrote.
 const STOP = new Set("the and for with from that this into using study based about their among between towards toward analysis impact effect effects use its are was were has have not can".split(" "));
 export const tok = (s) => ((s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").match(/[a-z0-9]{3,}/g) || []).filter((w) => !STOP.has(w));
-import { contrib, recency, trackRaw, intlShare, chairScore, SRC } from "./scoring.js";
+import { contrib, quality, recency, trackRaw, intlShare, chairScore, SRC } from "./scoring.js";
 export const LEX_MIN_SEM = 0.7; // a person with no word match still "covers" a topic when the meaning score (0-1 over all people) is at least this
 
 export function makeCtx(arts) {
@@ -76,10 +76,10 @@ export function analyze(people, ctx, topics, { vecs = null, qvs = null, ev = nul
   const list = people.list, D = 384, T = topics.length;
   const raw = list.map((p) => {
     const seen = new Set(), items = [...p.adv.map((a) => [a, "adv"]), ...p.aut.map((a) => [a, "own"])].filter(([a]) => a.id !== skip && !seen.has(a.id) && seen.add(a.id));
-    return topics.map((t) => { const m = { adv: 0, own: 0, ij: 0, intl: 0, exp: 0 }, L = { adv: [], own: [], ij: [], intl: [] };
-      for (const [a, role] of items) { const x = itemScore(ctx, a, t); if (x > 0) { const src = role === "own" && p.intlIds.has(a.id) ? "intl" : role; m[src] += x * rw(ctx, a); L[src].push([a, x]); } }
-      for (const a of p.ij) { const x = ijScore(ctx, a, t); if (x > 0) { m.ij += x * recency(a.year, ctx.minY, ctx.span); L.ij.push([a, x]); } }
-      m.exp = expScore(ctx, p, t);
+    return topics.map((t) => { const v = { adv: [], own: [], ij: [], intl: [] }, L = { adv: [], own: [], ij: [], intl: [] };
+      for (const [a, role] of items) { const x = itemScore(ctx, a, t); if (x > 0) { const src = role === "own" && p.intlIds.has(a.id) ? "intl" : role; v[src].push(x * rw(ctx, a)); L[src].push([a, x]); } }
+      for (const a of p.ij) { const x = ijScore(ctx, a, t); if (x > 0) { v.ij.push(x * recency(a.year, ctx.minY, ctx.span)); L.ij.push([a, x]); } }
+      const m = { ...Object.fromEntries(Object.entries(v).map(([k, xs]) => [k, quality(xs)])), exp: expScore(ctx, p, t) }; // quality of the best matches, not their number
       const parts = Object.fromEntries(SRC.map((k) => [k, contrib(m[k], k)])); Object.values(L).forEach((l) => l.sort((x, y) => y[1] - x[1]));
       const g = (k) => L[k].map((z) => z[0]);
       return { lex: SRC.reduce((a, k) => a + parts[k], 0), parts, adv: g("adv"), aut: [...g("own"), ...g("intl")], ij: g("ij"), intl: g("intl") }; });
@@ -93,7 +93,7 @@ export function analyze(people, ctx, topics, { vecs = null, qvs = null, ev = nul
     const covN = per.filter((x) => x.covered).length, total = per.reduce((a, x) => a + x.s, 0) + 0.5 * Math.max(0, covN - 1); // bonus for covering more of the topics
     const mix = Object.fromEntries(SRC.map((k) => [k, per.reduce((a, x) => a + x.parts[k], 0)])), mixT = SRC.reduce((a, k) => a + mix[k], 0) || 1;
     const intl = intlShare(mix.ij + mix.intl, Math.max(1, T));
-    return { p, per, covN, total, mix, mixShare: Object.fromEntries(SRC.map((k) => [k, mix[k] / mixT])), intl, chair: chairScore(total / Math.max(1, T), intl, p.trackN) };
+    return { p, per, covN, total, mix, mixShare: Object.fromEntries(SRC.map((k) => [k, mix[k] / mixT])), intl, chair: chairScore(total / Math.max(1, T), intl) };
   });
   rows.sort((x, y) => y.total - x.total || y.p.adv.length - x.p.adv.length || x.p.name.localeCompare(y.p.name));
   return all ? rows : rows.filter((r) => r.covN > 0 || !T);
@@ -111,7 +111,7 @@ export function panel(rows0, topics, subs, { size = 3, fixed = [], includeFormer
   const w = (u) => (u[0] === "t" ? 10 : 1), members = [], got = new Set();
   const take = (r, role) => { const u = units(r), fresh = [...u].filter((x) => !got.has(x)); u.forEach((x) => got.add(x)); members.push({ row: r, role, newTopics: fresh.filter((x) => x[0] === "t").map((x) => +x.slice(1)), newSubs: fresh.filter((x) => x[0] === "s").map((x) => x.slice(1)) }); };
   fixed.forEach((r, i) => take(r, i === 0 ? "Chair" : "Member"));
-  if (!members.length) { const pick = rows.filter((r) => canChair(r.p, includeFormer) && r.covN > 0).sort((x, y) => y.chair - x.chair || x.p.name.localeCompare(y.p.name))[0] || rows.find((r) => canChair(r.p, includeFormer)); if (pick) take(pick, "Chair"); } // chair: topic match x international boost x track record
+  if (!members.length) { const pick = rows.filter((r) => canChair(r.p, includeFormer) && r.covN > 0).sort((x, y) => y.chair - x.chair || y.p.trackN - x.p.trackN || x.p.name.localeCompare(y.p.name))[0] || rows.find((r) => canChair(r.p, includeFormer)); if (pick) take(pick, "Chair"); } // chair: topic match x international boost; track record breaks exact ties only
   while (members.length < size) {
     const used = new Set(members.map((m) => m.row.p.i));
     const best = rows.filter((r) => !used.has(r.p.i)).map((r) => ({ r, g: [...units(r)].filter((x) => !got.has(x)).reduce((a, x) => a + w(x), 0) })).filter((z) => z.g > 0 || members.length < size)
