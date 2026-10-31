@@ -1,0 +1,3 @@
+import { emphParts } from "./emph.js";
+export const Emph = ({ text, terms }) => emphParts(text, terms).map(([k, s], j) => k === "b" ? <strong key={j} className="font-semibold text-ink">{s}</strong> : k === "i" ? <em key={j}>{s}</em> : k === "u" ? <u key={j} className="decoration-crimson/50 decoration-2 underline-offset-4">{s}</u> : s);
+export const EmphKey = () => <p className="mt-2 text-xs text-ink-3">Reading aids: <strong className="font-semibold">bold</strong> marks key topics, <em>italics</em> quoted terms and abbreviations, <u className="decoration-crimson/50 decoration-2 underline-offset-4">underline</u> the reported findings.</p>;
