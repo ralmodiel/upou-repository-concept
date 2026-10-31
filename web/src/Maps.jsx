@@ -4,6 +4,7 @@ import { forceSimulation, forceLink, forceManyBody, forceCenter, forceCollide } 
 import { AddBtn, Icon, Link, MapsIntro, clip, colKey, lazyRetry, slug } from "./App.jsx";
 import { addTopic, loadTabs, removeTopic } from "./committee.js";
 import { loadPeople } from "./adviserData.js";
+import { titled } from "./personName.js";
 import { useAccess } from "./access.js";
 import { pref } from "./consent.js";
 import { recommend } from "./recommend.js";
@@ -64,7 +65,7 @@ function build(kind, id, on) {
     if (on.collection) arts.forEach((a) => link(pub(a).id, iss(a).id, "collection"));
   } else if (kind === "adviser") {
     const ppl = S.ppl, p = ppl?.bySlug.get(id); if (!p) return null;
-    const dn = (q) => node("d:" + q.slug, "adviser", q.name, q.adv.length + q.aut.length, q.slug), subN = (t) => node("s:" + t, "subtopic", t, cnt("subtopics", t), t);
+    const dn = (q) => node("d:" + q.slug, "adviser", titled(q), q.adv.length + q.aut.length, q.slug), subN = (t) => node("s:" + t, "subtopic", t, cnt("subtopics", t), t);
     seed = dn(p).id;
     const items = [...p.adv, ...p.aut], top = (get, n) => { const m = new Map(); items.forEach((a) => get(a).forEach((t) => m.set(t, (m.get(t) || 0) + 1))); return [...m].sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0])).slice(0, n); };
     p.adv.slice(0, 14).forEach((a) => link(seed, pub(a).id, "advised"));
@@ -278,7 +279,7 @@ export function Maps({ kind: kind0, id }) {
           <div className="flex flex-wrap gap-2 border-t border-line px-3 py-2 text-xs">{Object.entries(KIND_LABEL).filter(([k]) => !lay || lay.nodes.some((n) => n.kind === k)).map(([k, l]) => <span key={k} className="inline-flex items-center gap-1.5 rounded-full border border-line px-2.5 py-1"><Swatch k={k} shapes={shapes} />{l}</span>)}<span className="inline-flex items-center gap-1.5 rounded-full border border-line px-2.5 py-1"><span className="h-0.5 w-5" style={{ background: LOGO.cyan }} />line = how two nodes relate (named on the line)</span><span className="inline-flex items-center gap-1.5 rounded-full border border-line px-2.5 py-1"><span className="h-2.5 w-2.5 rounded-full border-2 border-[#f2b705]" />in your advanced search</span></div>
         </div>
         <aside className="space-y-4">
-          {person && <p data-back-to-person><Link to={"/adviser/" + person.slug} className="inline-flex min-h-10 items-center rounded-full border border-action px-4 text-action">Back to {person.name}’s profile</Link></p>}
+          {person && <p data-back-to-person><Link to={"/adviser/" + person.slug} className="inline-flex min-h-10 items-center rounded-full border border-action px-4 text-action">Back to {titled(person)}’s profile</Link></p>}
           {kind === "author" && authorAdviser(seedId) && <p data-also-adviser className="rounded-md bg-navy-soft p-3 text-sm text-ink-2"><b>Also an adviser.</b> <Link to={"/adviser/" + authorAdviser(seedId).slug} className="text-link underline">Profile</Link> · <Link to={"/maps/adviser/" + authorAdviser(seedId).slug} className="text-link underline">Adviser map</Link></p>}
           <form role="search" onSubmit={(e) => { e.preventDefault(); const t = find.trim().toLowerCase(), m = t && lay?.nodes.find((n) => n.label.toLowerCase().includes(t)); setFound(m ? "" : "No node matches"); if (m) { setSel(m.id); svg.current?.querySelector(`g[data-node="${CSS.escape(m.id)}"]`)?.focus(); } }} className="flex gap-2">
             <input value={find} onChange={(e) => setFind(e.target.value)} placeholder="Find a node on the map" aria-label="Find a node on the map" className="min-h-11 min-w-0 flex-1 rounded-md border border-line bg-surface px-3 text-base" />

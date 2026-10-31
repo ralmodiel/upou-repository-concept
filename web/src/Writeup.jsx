@@ -7,10 +7,12 @@ import { loadProfile } from "./adviserData.js";
 // a faculty file (wr) overrides a length and says whether it is AI or human and whether it was reviewed.
 const LEN = [["half", "Half page"], ["one", "1 page"], ["two", "2 pages"]];
 export const AI_NOTE = "AI-generated from this repository’s records, may contain errors, not an endorsement.";
-export function Writeup({ slug, name, wr, collapsed = false }) {
+export function Writeup({ slug, name: plain, title = "", wr, collapsed = false }) {
+  const name = title ? title + " " + plain : plain; // heading and label carry the title; the text gets it on the first full-name mention
   const [len, setLen] = useState("half"), [open, setOpen] = useState(!collapsed), [prof, setProf] = useState(undefined), [msg, setMsg] = useState(""), box = useRef(null);
   useEffect(() => { let on = true; if (open && !prof) loadProfile(slug).then((j) => on && setProf(j)).catch(() => on && setProf(null)); return () => { on = false; }; }, [open, slug]);
-  const e = wr?.[len] || (prof?.[len] ? { text: prof[len], source: "ai", reviewed: false } : null);
+  const e0 = wr?.[len] || (prof?.[len] ? { text: prof[len], source: "ai", reviewed: false } : null);
+  const e = e0 && title ? { ...e0, text: e0.text.replace(plain, () => name) } : e0;
   const label = !e ? "" : e.source === "human" ? "Edited by a person." : AI_NOTE;
   const full = e ? `${name} (${LEN.find((x) => x[0] === len)[1]})\n\n${e.text}\n\n${label}${e.reviewed ? " Reviewed." : ""}${e.note ? " " + e.note : ""}` : "";
   const copy = async () => { try { await navigator.clipboard.writeText(full); setMsg("Copied"); } catch { setMsg("Copy is blocked here: select the text"); } };

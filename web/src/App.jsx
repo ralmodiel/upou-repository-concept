@@ -11,6 +11,7 @@ export const useModel = () => { const [, t] = useState(0); useEffect(() => onMod
 import { Component, lazy, memo, Suspense, useMemo, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { lock, useAccess } from "./access.js";
+import { withTitle } from "./personName.js";
 import { load, startModel, modelState, onModel, searchArticles, didYouMean, didYouMeanAsync, warmSearch, faqsFor, pagePassage, FIELD_LABEL } from "./engine.js";
 
 // Hash routing with scroll memory: going back to the previous route restores its scroll position; anything else starts at the top.
@@ -694,7 +695,7 @@ function Advisers_({ a }) {
   const { open } = useAccess();
   if (!open) return null; // adviser names are restricted: they arrive only after login (encrypted data)
   const advN = countOf(window.__S, "advN", (x) => x.advisers);
-  return a.advisers.length > 0 ? <p className="mt-1 text-sm text-ink-2"><span className="text-ink-3">{a.advisers.length > 1 ? "Advisers" : "Adviser"}:</span> {a.advisers.map((n, i) => <span key={n}>{i > 0 && "; "}{advN(n) > 1 ? <Link to={"/adviser/" + slug(n)} className="text-link hover:underline">{n}</Link> : n}</span>)}</p> : null;
+  return a.advisers.length > 0 ? <p className="mt-1 text-sm text-ink-2"><span className="text-ink-3">{a.advisers.length > 1 ? "Advisers" : "Adviser"}:</span> {a.advisers.map((n, i) => <span key={n}>{i > 0 && "; "}{advN(n) > 1 ? <Link to={"/adviser/" + slug(n)} className="text-link hover:underline">{withTitle(window.__S, n)}</Link> : withTitle(window.__S, n)}</span>)}</p> : null;
 }
 function ItemTags({ a }) {
   const S = window.__S, tagN = countOf(S, "tagN", (x) => x.subjects), subN = countOf(S, "subN", (x) => x.subtopics);

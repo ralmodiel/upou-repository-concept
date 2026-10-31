@@ -22,6 +22,9 @@ git add web/sealed && git commit
 ```
 - Gates that need the plaintext (`rounds.mjs`, `phone.mjs`, `e2e/ui.mjs`, ...) print `SKIP` in a ciphertext-only clone. `access-check.mjs` fails there unless `ADV_SRC=<web/public of the author's copy>` points it at the plaintext to compare against.
 
+## Official titles
+`web/scripts/people-merge.mjs` reads the git-ignored `data/faculty-titles.json` (`{people:[{name,title,...}]}`, from the public UPOU faculty pages) and sets `ti` where no faculty file has a title. The titles exist only inside the encrypted `people.json`; the UI shows them through `src/personName.js` and leaves citations and author fields plain. Reseal after changing the file.
+
 ## One-time setup (GitHub)
 1. Deploy: push to main (or run the "Deploy to GitHub Pages" workflow). CI builds from `web/sealed`; no secrets.
 2. Open `<site>/#/advisers` and sign in. The username is not case sensitive.

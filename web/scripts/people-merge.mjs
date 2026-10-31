@@ -72,6 +72,14 @@ export function mergePeople(base, files, ij = []) {
   return { people: out, rowSrc: src, report };
 }
 
+// Official UPOU academic titles (Dr., Prof., Assoc. Prof., Asst. Prof.) from the git-ignored ../data/faculty-titles.json ({people:[{name,title}]}): set as `ti` only where a
+// faculty file gave none. Display-only, like the faculty-file title; they reach the browser only inside the encrypted people.json.
+export function applyTitles(people, titles) {
+  const by = new Map(titles.filter((t) => t.title).map((t) => [fold(t.name), t.title]));
+  for (const p of people) if (!p.ti) { const t = p.names.map((n) => by.get(fold(n))).find(Boolean); if (t) p.ti = t; }
+  return people;
+}
+
 if (process.argv[1] === new URL(import.meta.url).pathname) {
   const { files, examples } = load(), errs = crossCheck(files).map((m) => "cross-file: " + m);
   for (const f of files) for (const m of f.errors) errs.push(`web/public/faculty/${f.file}: ${m}`);
@@ -79,6 +87,7 @@ if (process.argv[1] === new URL(import.meta.url).pathname) {
   const base = JSON.parse(readFileSync(W + "data/people.base.json", "utf8")), ij = existsSync(FAC + "ijodel-articles.json") ? JSON.parse(readFileSync(FAC + "ijodel-articles.json", "utf8")) : [];
   const half = existsSync(W + "data/ijodel-half.json") ? JSON.parse(readFileSync(W + "data/ijodel-half.json", "utf8")) : {};
   const { people, rowSrc, report } = mergePeople(base, files, ij);
+  const tf = W + "../data/faculty-titles.json"; if (existsSync(tf)) applyTitles(people, JSON.parse(readFileSync(tf, "utf8")).people || []);
   const old = readFileSync(W + "data/people.base.bin"), bin = Buffer.alloc(people.length * D);
   rowSrc.forEach((rs, r) => { if (!rs.length) return; const acc = new Float32Array(D);
     for (const i of rs) { const w = base[i].adv.length + base[i].aut.length; for (let d = 0; d < D; d++) acc[d] += new Int8Array(old.buffer, old.byteOffset + i * D, D)[d] * w; }

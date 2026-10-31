@@ -3,6 +3,7 @@
 const STOP = new Set("the and for with from that this into using study based about their among between towards toward analysis impact effect effects use its are was were has have not can".split(" "));
 export const tok = (s) => ((s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").match(/[a-z0-9]{3,}/g) || []).filter((w) => !STOP.has(w));
 import { contrib, quality, recency, trackRaw, intlShare, chairScore, SRC } from "./scoring.js";
+import { titled } from "./personName.js";
 export const LEX_MIN_SEM = 0.7; // a person with no word match still "covers" a topic when the meaning score (0-1 over all people) is at least this
 
 export function makeCtx(arts) {
@@ -122,7 +123,7 @@ export function panel(rows0, topics, subs, { size = 3, fixed = [], includeFormer
   return { members, uncovered };
 }
 export const panelText = (topics, pn, lastYear) => [`Suggested advisory committee for: ${topics.map((t) => t.v).join("; ")}`,
-  ...pn.members.map((m, i) => `${i + 1}. ${m.role}: ${m.row.p.name}${badge(m.row.p, lastYear) ? ` [${badge(m.row.p, lastYear)}]` : ""}${m.newTopics.length ? ` covers ${m.newTopics.map((t) => topics[t].v).join(", ")}` : ""}`),
+  ...pn.members.map((m, i) => `${i + 1}. ${m.role}: ${titled(m.row.p)}${badge(m.row.p, lastYear) ? ` [${badge(m.row.p, lastYear)}]` : ""}${m.newTopics.length ? ` covers ${m.newTopics.map((t) => topics[t].v).join(", ")}` : ""}`),
   ...(pn.uncovered.length ? [`Not covered by anyone found: ${pn.uncovered.map((t) => topics[t].v).join(", ")}`] : []), "Suggestions only (AI-assisted ranking from this repository); not endorsements."].join("\n");
 
 // Discovery: narrower thesis topics under an interest, from counts in the data only.

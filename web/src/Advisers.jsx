@@ -9,6 +9,7 @@ import { AdviserPrivacy } from "./AdviserPrivacy.jsx";
 import { Writeup } from "./Writeup.jsx";
 import { openCookieSettings } from "./Consent.jsx";
 import { SRC, SRC_LABEL } from "./scoring.js";
+import { titled } from "./personName.js"; // display name with the official title; matching and data keep the plain name
 
 // people index and meaning vectors come only through adviserData.js; vectors only once the opt-in model is ready
 function usePeople(needVecs) {
@@ -22,7 +23,6 @@ function usePeople(needVecs) {
   return S.ppl;
 }
 const Badge = ({ p, lastYear }) => <>{badges(p, lastYear).map((b) => <span key={b} data-badge={p.st === "external" ? "external" : p.st === "former" && b.startsWith("No longer") ? "former" : p.st === "new" && p.none ? "new" : p.none ? "none" : "no-advisee"} className="inline-block rounded bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-950">{b}</span>)}</>;
-const nm = (p) => (p.title ? p.title + " " : "") + p.name; // the title is shown, never part of a matching key
 const MIXC = { adv: "bg-navy", own: "bg-action", ij: "bg-amber-600", intl: "bg-emerald-700", exp: "bg-slate-500" };
 const MIXP = { adv: "none", own: "repeating-linear-gradient(45deg,rgba(255,255,255,.55) 0 2px,transparent 2px 5px)", ij: "repeating-linear-gradient(-45deg,rgba(255,255,255,.55) 0 2px,transparent 2px 5px)", intl: "radial-gradient(rgba(255,255,255,.6) 1px,transparent 1.5px) 0 0/4px 4px", exp: "repeating-linear-gradient(90deg,rgba(255,255,255,.55) 0 2px,transparent 2px 5px)" }; // pattern per source so the bar is not colour-only
 function pcts(sh, ks) { const v = ks.map((k) => sh[k] * 100), f = v.map(Math.floor); let m = Math.round(v.reduce((a, x) => a + x, 0)) - f.reduce((a, x) => a + x, 0); v.map((x, i) => [x - f[i], i]).sort((a, b) => b[0] - a[0]).forEach(([, i]) => { if (m-- > 0) f[i]++; }); return f; } // largest remainder: the shown numbers sum to the rounded total
@@ -128,8 +128,8 @@ function TabBody({ tab, setTab, newTab, lastYear }) {
       <p className="text-sm text-ink-3">A chair who has advised, then 2 or 3 more members (your choice) chosen to cover the topics you entered (greedy set cover), then complementary sub-topics. Edit freely.</p>
       {pn.members.length === 0 && <p data-no-panel className="mt-3 rounded-md border border-line p-3 text-sm text-ink-2">No panel can be suggested: nobody in this repository who has advised matches these topics. Try a broader topic, or tick “Include former faculty” below.</p>}
       <ol className="mt-3 space-y-3">{pn.members.map((m, k) => <li key={m.row.p.i} data-member={m.row.p.name} className="rounded-lg border border-line p-3">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1"><span className="text-xs font-bold uppercase text-ink-3">{m.role}</span><Link to={"/adviser/" + m.row.p.slug} className="font-serif text-lg text-link hover:underline">{nm(m.row.p)}</Link><Badge p={m.row.p} lastYear={lastYear} />
-          <button type="button" onClick={() => { setPm(members.filter((i) => i !== m.row.p.i)); setStatus(`Removed ${m.row.p.name} from the panel`); setTimeout(() => pbox.current?.focus(), 0); }} aria-label={`Remove ${m.row.p.name} from the panel`} className="ml-auto min-h-9 rounded-full border border-line px-3 text-xs hover:bg-navy-soft">Remove</button></div>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1"><span className="text-xs font-bold uppercase text-ink-3">{m.role}</span><Link to={"/adviser/" + m.row.p.slug} className="font-serif text-lg text-link hover:underline">{titled(m.row.p)}</Link><Badge p={m.row.p} lastYear={lastYear} />
+          <button type="button" onClick={() => { setPm(members.filter((i) => i !== m.row.p.i)); setStatus(`Removed ${titled(m.row.p)} from the panel`); setTimeout(() => pbox.current?.focus(), 0); }} aria-label={`Remove ${titled(m.row.p)} from the panel`} className="ml-auto min-h-9 rounded-full border border-line px-3 text-xs hover:bg-navy-soft">Remove</button></div>
         {m.role === "Chair" && <p className="mt-1 text-sm text-ink-2" data-chair>Chair because: {chairText(m.row)}.</p>}<Mix r={m.row} />
         <p className="mt-1 text-sm text-ink-2">{m.newTopics.length ? <>Adds: {m.newTopics.map((t) => topics[t].v.slice(0, 40)).join("; ")}</> : "Adds no new topic"}{m.newSubs.length > 0 && <> · sub-topics: {m.newSubs.join(", ")} <AiLabel /></>}</p></li>)}</ol>
       {pn.uncovered.length > 0 && <p role="alert" className="mt-3 rounded bg-amber-100 p-2 text-sm text-amber-950">Not covered by any panel member: {pn.uncovered.map((t) => topics[t].v.slice(0, 40)).join("; ")}{pn.uncovered.every((t) => !rows.some((r) => r.per[t].covered)) ? ". Nobody in this repository has items on it." : ". Try Suggest members."}</p>}
@@ -140,7 +140,7 @@ function TabBody({ tab, setTab, newTab, lastYear }) {
       <details className="mt-2"><summary className="cursor-pointer text-sm text-ink-2">Panel as plain text</summary><textarea readOnly aria-label="Panel as plain text" value={text} rows={5} className="mt-1 w-full rounded border border-line bg-surface p-2 text-sm" /></details>
       {topics.length > 0 && <div className="mt-4 max-h-[70vh] overflow-auto" tabIndex={0} role="region" aria-label="Topic coverage table, scrolls"><table className="min-w-full text-left text-sm" data-matrix><caption className="mb-1 text-left text-sm font-bold text-ink-2">Topic coverage: panel members and the top-ranked people<span className="block text-xs font-normal text-ink-3">Yes = has items on the topic; the number is the match score from 0 to 1.</span></caption>
         <thead><tr><th scope="col" className="py-1 pr-3">Person</th>{topics.map((t, k) => <th key={k} scope="col" className="px-2 py-1">{k + 1}. {t.v.slice(0, 24)}</th>)}</tr></thead>
-        <tbody>{[...new Set([...members, ...rows.slice(0, 6).map((r) => r.p.i)])].map((i) => byI.get(i)).filter(Boolean).map((r) => <tr key={r.p.i} className="border-t border-line"><th scope="row" className="sticky left-0 bg-surface py-1 pr-3 font-medium">{r.p.name}{members.includes(r.p.i) ? " (panel)" : ""}</th>{r.per.map((x, k) => <td key={k} className="px-2 py-1">{x.covered ? <span title={`score ${x.s.toFixed(2)}`}>Yes {x.s.toFixed(2)}</span> : <span aria-label="no coverage">–</span>}</td>)}</tr>)}</tbody></table></div>}
+        <tbody>{[...new Set([...members, ...rows.slice(0, 6).map((r) => r.p.i)])].map((i) => byI.get(i)).filter(Boolean).map((r) => <tr key={r.p.i} className="border-t border-line"><th scope="row" className="sticky left-0 bg-surface py-1 pr-3 font-medium">{titled(r.p)}{members.includes(r.p.i) ? " (panel)" : ""}</th>{r.per.map((x, k) => <td key={k} className="px-2 py-1">{x.covered ? <span title={`score ${x.s.toFixed(2)}`}>Yes {x.s.toFixed(2)}</span> : <span aria-label="no coverage">–</span>}</td>)}</tr>)}</tbody></table></div>}
     </section>}
     <h2 className="mt-8 font-serif text-2xl">{topics.length ? "People ranked by coverage of your topics" : "People"}{topics.length > 0 && <AiLabel />}</h2>
     <div className="mt-2"><label htmlFor={nid + "s"} className="block text-sm font-bold text-ink-2">Search a name</label><input id={nid + "s"} type="search" autoComplete="off" value={name} onChange={(e) => { setName(e.target.value); setLim(30); }} placeholder="Name" className="mt-1 w-full max-w-md rounded-md border border-line bg-surface px-4 py-3 text-base text-ink" /></div>
@@ -148,13 +148,13 @@ function TabBody({ tab, setTab, newTab, lastYear }) {
     {topics.length === 0 && <p data-hint className="mt-2 rounded-md bg-navy-soft p-3 text-sm text-ink-2">Add a topic above to rank these people by how well they match it and to get a suggested panel.</p>}
     {shown.length === 0 && <p data-empty-people className="empty mt-2">{nq ? <>Nobody matches “{name.trim()}”{topics.length ? " among people who cover your topics" : ""}. <button type="button" onClick={() => setName("")} className="text-link underline">Clear the name</button>.</> : <>Nobody in this repository has items on these topics. Try a broader wording or fewer topics.</>}</p>}
     <ol className="mt-2 space-y-3">{shown.slice(0, lim).map((r) => { const p = r.p, ex = expertise(p); return (<li key={p.i} data-person={p.name} className="rounded-xl border border-line bg-surface p-4">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1"><Link to={"/adviser/" + p.slug} className="font-serif text-xl text-link hover:underline">{nm(p)}</Link><Badge p={p} lastYear={lastYear} />
-        {topics.length > 0 && <button type="button" disabled={members.includes(p.i) || members.length >= 5} title={members.length >= 5 && !members.includes(p.i) ? "The panel is full (5)" : undefined} onClick={() => { setPm([...members, p.i].slice(0, 5)); setStatus(`Added ${p.name} to the panel`); }} aria-label={`Add ${p.name} to the panel`} className="ml-auto min-h-9 rounded-full border border-action px-3 text-xs font-medium text-action hover:bg-navy-soft disabled:opacity-40">{members.includes(p.i) ? "In panel" : "Add to panel"}</button>}</div>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1"><Link to={"/adviser/" + p.slug} className="font-serif text-xl text-link hover:underline">{titled(p)}</Link><Badge p={p} lastYear={lastYear} />
+        {topics.length > 0 && <button type="button" disabled={members.includes(p.i) || members.length >= 5} title={members.length >= 5 && !members.includes(p.i) ? "The panel is full (5)" : undefined} onClick={() => { setPm([...members, p.i].slice(0, 5)); setStatus(`Added ${titled(p)} to the panel`); }} aria-label={`Add ${titled(p)} to the panel`} className="ml-auto min-h-9 rounded-full border border-action px-3 text-xs font-medium text-action hover:bg-navy-soft disabled:opacity-40">{members.includes(p.i) ? "In panel" : "Add to panel"}</button>}</div>
       <p className="mt-1 text-sm text-ink-2">{[p.adv.length ? `${plural(p.adv.length, "advisee")}${p.first ? ` · active ${span(p)}` : ""}` : "", p.aut.length ? `author of ${plural(p.aut.length, "article")}` : ""].filter(Boolean).join(" · ")}{topics.length > 1 && ` · covers ${r.covN} of ${topics.length} topics`}</p>
       {ex.length > 0 && <p className="mt-1 text-xs text-ink-3">Expertise<AiLabel />: {ex.join(", ")}</p>}
       {topics.length > 0 && <><p data-match className="mt-1 text-sm text-ink-2">Match: {rows[0]?.total > 0 ? Math.round((100 * r.total) / rows[0].total) : 0}% of the best match in this list</p><Mix r={r} /></>}
       <p className="mt-1 text-sm"><Link to={"/maps/adviser/" + p.slug} className="text-link hover:underline">View relationship map</Link></p>
-      <Writeup slug={p.slug} name={p.name} wr={p.wr} collapsed />
+      <Writeup slug={p.slug} name={p.name} title={p.title} wr={p.wr} collapsed />
       {topics.length > 0 ? <Why r={r} topics={topics} /> : <ul className="mt-2 space-y-1 text-sm">{[...p.adv, ...p.aut].slice(0, 3).map((a) => <li key={a.id}><Link to={"/read/" + a.id} className="text-link hover:underline">{a.title}</Link> <span className="text-ink-3">{a.year || ""}</span></li>)}</ul>}
     </li>); })}</ol>
     {shown.length > lim && <button type="button" data-more onClick={() => setLim(lim + 30)} className="mt-3 rounded-md bg-action-fill px-6 py-2.5 font-bold text-white hover:bg-action-2-fill">Show 30 more ({shown.length - lim} left)</button>}
@@ -208,7 +208,7 @@ export function Advisers() {
 function CompareAll({ tabs, ppl }) {
   const rec = useMemo(() => { const m = new Map(); tabs.filter((t) => t.topics.length).forEach((t) => analyze(ppl, ppl.ctx, t.topics).slice(0, 5).forEach((r) => { const e = m.get(r.p.i) || { p: r.p, tabs: [] }; e.tabs.push(t.name); m.set(r.p.i, e); }));
     return [...m.values()].filter((e) => e.tabs.length > 1); }, [tabs, ppl]);
-  return rec.length ? <section className="mt-8" aria-labelledby="cmp-h"><h2 id="cmp-h" className="font-serif text-2xl">People who recur across your topics</h2><ul className="mt-2 space-y-1 text-sm">{rec.map((e) => <li key={e.p.i}><Link to={"/adviser/" + e.p.slug} className="text-link hover:underline">{e.p.name}</Link> <span className="text-ink-3">· top 5 for {e.tabs.join(", ")}</span></li>)}</ul></section> : null;
+  return rec.length ? <section className="mt-8" aria-labelledby="cmp-h"><h2 id="cmp-h" className="font-serif text-2xl">People who recur across your topics</h2><ul className="mt-2 space-y-1 text-sm">{rec.map((e) => <li key={e.p.i}><Link to={"/adviser/" + e.p.slug} className="text-link hover:underline">{titled(e.p)}</Link> <span className="text-ink-3">· top 5 for {e.tabs.join(", ")}</span></li>)}</ul></section> : null;
 }
 
 function IjList({ e }) {
@@ -222,22 +222,22 @@ function IjList({ e }) {
 }
 export function AdviserPage({ id }) {
   const ppl = usePeople(false), e = ppl?.bySlug.get(id);
-  useEffect(() => { if (!e) return; const was = document.title; document.title = nm(e) + " · Advisers"; return () => { document.title = was; }; }, [e]);
+  useEffect(() => { if (!e) return; const was = document.title; document.title = titled(e) + " · Advisers"; return () => { document.title = was; }; }, [e]);
   useEffect(() => { if (e && id !== e.slug) location.replace("#/adviser/" + e.slug); }, [e, id]); // an old name or spelling lands on the merged person
   if (!ppl) return window.__S.pplErr ? <p role="alert" data-load-error className="mx-auto mt-8 max-w-6xl px-4 text-sm text-ink-2">The adviser data could not be loaded ({window.__S.pplErr}). Reload the page; if it keeps happening, sign out and in again.</p> : <div className="skeleton mt-4 h-[40vh]" role="status" aria-label="Loading" />;
   const items = e ? [...new Map([...e.adv, ...e.aut].map((a) => [a.id, a])).values()].sort((x, y) => y.year - x.year) : [], man = (f) => e.man.includes(f) ? " (added manually)" : "";
   return (
     <section className="mx-auto max-w-6xl min-[1536px]:max-w-[88rem] px-4 py-8 sm:px-8">
-      <Crumbs trail={[["/", "Home"], ["/advisers", "Advisers"], [null, e ? e.name : "Not found"]]} />
+      <Crumbs trail={[["/", "Home"], ["/advisers", "Advisers"], [null, e ? titled(e) : "Not found"]]} />
       {!e ? <p className="mt-4 text-ink-2">We could not find that person. <Link to="/advisers" className="text-link underline">Search advisers by topic</Link>.</p> : <>
-        <h1 className="mt-2 font-serif text-3xl font-light">{nm(e)}</h1>
+        <h1 className="mt-2 font-serif text-3xl font-light">{titled(e)}</h1>
         <p className="mt-1 flex flex-wrap items-center gap-3 text-ink-3"><span>{[e.adv.length ? `Adviser of ${plural(e.adv.length, "thesis").replace("thesiss", "theses")}${e.first ? ` · ${span(e)}` : ""}` : "", e.aut.length ? `Author of ${plural(e.aut.length, "article")}` : "", e.ij.length ? `${plural(e.ij.length, "IJODeL article")}` : ""].filter(Boolean).join(" · ")}</span><Badge p={e} lastYear={ppl.lastYear} /></p>
         {(e.inactive || e.none) && <p className="mt-2 text-sm text-ink-2">Based only on items in this repository{e.inactive ? `: the latest advisee is from ${e.last}, earlier than ${ppl.lastYear}` : ""}. It does not say whether the person is available.</p>}
         {(e.former.length > 0 || e.corrections) && <p className="mt-2 text-sm text-ink-2" data-name-history><b>Name history{man("former_names")}:</b> {e.former.length > 0 && <>also written as {e.former.join("; ")}. </>}{e.corrections}</p>}
         {(e.unit || e.expertise.length > 0) && <p className="mt-2 text-sm text-ink-2">{e.unit && <>Unit: {e.unit}{man("unit")}. </>}{e.expertise.length > 0 && <>Expertise{man("expertise")}: {e.expertise.join(", ")}.</>}</p>}
         <AdviserPrivacy />
         <p className="mt-3"><Link to={"/maps/adviser/" + e.slug} className="inline-flex min-h-10 items-center rounded-full border border-action px-4 text-sm font-medium text-action hover:bg-navy-soft">View relationship map</Link></p>
-        <Writeup slug={e.slug} name={nm(e)} wr={e.wr} />
+        <Writeup slug={e.slug} name={e.name} title={e.title} wr={e.wr} />
         <SpringerList slug={e.slug} />
         <ul className="grid-pubs mt-6">{items.map((a) => <Pub key={a.id} a={a} />)}</ul><IjList e={e} /></>}
     </section>

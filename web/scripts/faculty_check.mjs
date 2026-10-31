@@ -3,7 +3,8 @@
 // (surname change, redirect target, title not in the key, not_same_as split). Prints "N checks, M FAIL" and the IJODeL counts; exit 1 on FAIL.
 import { readFileSync, readdirSync } from "fs";
 import { FAC, validate, crossCheck, load, nameKey, sameKey } from "./faculty-lib.mjs";
-import { mergePeople } from "./people-merge.mjs";
+import { mergePeople, applyTitles } from "./people-merge.mjs";
+import { titled, withTitle } from "../src/personName.js";
 let n = 0, bad = 0; const ok = (m, c, x = "") => { n++; if (!c) { bad++; console.log(`FAIL ${m} ${x}`); } };
 const W = new URL("..", import.meta.url).pathname, rd = (p) => JSON.parse(readFileSync(W + p, "utf8"));
 const all = readdirSync(FAC).filter((f) => f.endsWith(".json") && !f.startsWith("ijodel-")).map((f) => ({ file: f, data: rd("public/faculty/" + f) }));
@@ -35,5 +36,10 @@ ok("IJODeL article under the old surname joins the person; a different Mario is 
   ok("not_same_as splits a wrong auto-merge", s.people.length === 2 && s.people.find((p) => p.s === "ana-cruz").adv.join() === "1" && s.report.split.length === 1); }
 { const a = mergePeople([{ n: "Ann Lee", s: "ann-lee", adv: [], aut: [], v: [{ n: "Ann Lee", adv: [], aut: [] }] }, { n: "Anne Lee", s: "anne-lee", adv: [], aut: [], v: [{ n: "Anne Lee", adv: [], aut: [] }] }], [], [{ id: "5", authors: ["Lee, A."] }, { id: "6", authors: ["Lee, Ann"] }]);
   ok("ambiguous initial is left unmerged, full first name is merged", a.report.ambiguous.length === 1 && !a.people.some((p) => p.ij?.includes("5")) && a.people.find((p) => p.s === "ann-lee").ij?.join() === "6"); }
+{ const t = applyTitles([{ n: "Ana Cruz", names: ["Ana Cruz", "Ana B. Cruz"] }, { n: "Ben Dela Peña", names: ["Ben Dela Peña"] }, { n: "Cy Dee", names: ["Cy Dee"], ti: "Engr." }, { n: "Di Eve", names: ["Di Eve"] }],
+    [{ name: "ANA B. CRUZ", title: "Dr." }, { name: "Ben Dela Pena", title: "Asst. Prof." }, { name: "Cy Dee", title: "Prof." }, { name: "Di Eve", title: null }]);
+  ok("titles from the local data: matched by folded name or alias; a faculty-file title wins; null adds nothing", t[0].ti === "Dr." && t[1].ti === "Asst. Prof." && t[2].ti === "Engr." && !t[3].ti); }
+{ const S = { ppl: { list: [{ name: "Ana Cruz", title: "Dr.", former: ["Ana Reyes"] }, { name: "Cy Dee", title: "", former: [] }] } };
+  ok("display name carries the title; the record adviser line is titled by name or former name, and plain without one", titled(S.ppl.list[0]) === "Dr. Ana Cruz" && titled(S.ppl.list[1]) === "Cy Dee" && withTitle(S, "Ana Reyes") === "Dr. Ana Reyes" && withTitle(S, "Cy Dee") === "Cy Dee" && withTitle({}, "Ana Cruz") === "Ana Cruz"); }
 ok("accents and Dela Pena variants match", sameKey(nameKey("Maria Dela Peña"), nameKey("Dela Pena, Maria")) && sameKey(nameKey("José Ñ. Reyes"), nameKey("Reyes, Jose")));
 console.log(`${n} checks, ${bad} FAIL`); process.exit(bad ? 1 : 0);
