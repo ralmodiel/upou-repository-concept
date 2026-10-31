@@ -1,0 +1,6 @@
+{
+  "slug": "melinda-f-lumanta",
+  "name": "Melinda F. Lumanta",
+  "aliases": ["Melinda F. Lumant A"],
+  "notes": "Added manually: thesis 1343 lists the adviser as \"Melinda F. Lumant A\" (a text-extraction split of the surname). Same first name, middle initial and surname as the other four theses, so merged here. \"Mendie Lumanta\" (thesis 1334, taken from an acknowledgment sentence) may be the same person by nickname, but the repository data does not say so; add it to aliases if you confirm it."
+}

@@ -1,0 +1,23 @@
+{
+  "example": true,
+  "slug": "maria-santos-reyes",
+  "name": "Maria Santos-Reyes",
+  "display_name": "Maria Santos-Reyes",
+  "title": "Dr.",
+  "former_names": ["Maria Santos"],
+  "aliases": ["M. Santos-Reyes"],
+  "not_same_as": ["Mario Santos"],
+  "corrections": "Surname changed in 2023 (added manually). Title changed from Prof. to Dr. after the doctorate in 2024.",
+  "status": "active",
+  "since": 2012,
+  "unit": "Faculty of Example Studies",
+  "expertise": ["open and distance learning", "learning analytics"],
+  "expertise_topics": [{ "k": "subtopic", "v": "Learning analytics" }],
+  "works": [{ "title": "An example article title", "id": "1234" }],
+  "ijodel_authors": ["Santos-Reyes, Maria"],
+  "ijodel_exclude": ["99"],
+  "international": ["1234"],
+  "not_international": ["ij:99"],
+  "writeups": { "half": { "text": "One short paragraph about this person's expertise.", "source": "human", "reviewed": true, "note": "Written by the person" } },
+  "notes": "Everything in this folder is published with the site."
+}

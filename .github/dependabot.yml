@@ -1,0 +1,12 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /web
+    schedule: { interval: weekly }
+    versioning-strategy: increase # keeps exact pins (deps.mjs checks them)
+    open-pull-requests-limit: 5
+    groups: { all-npm: { patterns: ["*"] } } # one grouped PR per week
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }
+    groups: { all-actions: { patterns: ["*"] } }

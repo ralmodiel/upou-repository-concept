@@ -1,0 +1,30 @@
+{
+"rule": "scholarly Article with an external publisher, a non-Zenodo DOI or a venue-like citation",
+"items": {
+"36": "publisher: International Astronautical Federation; citation names a venue",
+"50": "publisher: Intellect; doi prefix 10.1386; citation names a venue",
+"69": "citation names a venue",
+"100": "publisher: ACM; doi prefix 10.1145; citation names a venue",
+"273": "publisher: International Journal of Open and Distance eLearni",
+"276": "publisher: Institute of Electrical and Electronics Engineers",
+"278": "publisher: The International Journal on Very Large Data Bases; doi prefix 10.1007",
+"351": "publisher: Routledge; doi prefix 10.4324",
+"352": "publisher: International Journal of Open and Distance eLearni",
+"529": "citation names a venue",
+"530": "publisher: Avant; doi prefix 10.26913",
+"531": "publisher: Avant; doi prefix 10.26913",
+"532": "doi prefix 10.26913",
+"533": "publisher: Journal of Evidence-Based Medicine; doi prefix 10.1111; citation names a venue",
+"615": "citation names a venue",
+"618": "doi prefix 10.1145; citation names a venue",
+"646": "citation names a venue",
+"801": "citation names a venue",
+"808": "publisher: ACM; citation names a venue",
+"829": "publisher: oekom verlag; doi prefix 10.14512; citation names a venue",
+"837": "publisher: International Journal of Latest Research in Humani",
+"838": "publisher: INTERNATIONAL JOURNAL IN INFORMATION TECHNOLOGY IN",
+"985": "citation names a venue",
+"1122": "publisher: International Journal on Open and Distance e-Learn; citation names a venue",
+"1170": "publisher: Nederlandse Vereniging voor Bio-Ethiek (Dutch Asso; citation names a venue"
+}
+}

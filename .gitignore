@@ -1,0 +1,27 @@
+.venv/
+/data/
+__pycache__/
+web/node_modules/
+web/dist/
+.env*
+.DS_Store
+.idea/
+shots/
+*.log
+.next/
+build/
+coverage/
+
+/scripts/
+node_modules/
+dist/
+.claude/
+.mcp.json
+.aix/
+
+# thesis full-text passages (copyright): built locally by passages.py, never committed
+web/public/index/passages.json
+web/.tmp/
+
+# crawling + local-LLM pipeline scripts: run locally, never committed
+/*.py
