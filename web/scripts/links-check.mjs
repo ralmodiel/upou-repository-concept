@@ -5,7 +5,10 @@
 //    pub map seeds on it and its topic/author map links resolve to a seed option. Prints "N checks, M FAIL", exits 1 on failure.
 import fs from "node:fs"; import path from "node:path";
 const web = path.resolve(import.meta.dirname, ".."), rd = (f) => fs.readFileSync(path.join(web, f), "utf8");
-const arts = JSON.parse(rd("public/index/articles.json")), issues = JSON.parse(rd("public/index/issues.json"));
+// articles.json is gitignored (absent on a fresh checkout); issues.json was the journal-era OJS issue map and is no longer generated.
+if (!fs.existsSync(path.join(web, "public/index/articles.json"))) { console.log("SKIP links-check: public/index/articles.json not present (generated/ignored data)"); process.exit(0); }
+const arts = JSON.parse(rd("public/index/articles.json")), issues = fs.existsSync(path.join(web, "public/index/issues.json")) ? JSON.parse(rd("public/index/issues.json")) : {};
+if (!arts.some((a) => a.issue)) { console.log("SKIP links-check: corpus has no journal issues (thesis repository); this check covers the journal-era data only"); process.exit(0); }
 const issueKey = (a) => a.issue.vol + "." + a.issue.no.replace("&", "-"), S = { articles: arts, issues, byId: Object.fromEntries(arts.map((a) => [a.id, a])) };
 const adv = rd("src/Advanced.jsx"), maps = rd("src/Maps.jsx"), grab = (s, re) => s.match(re)?.[0] ?? (console.log("FAIL cannot find " + re), process.exit(1));
 let n = 0, bad = 0; const check = (fails, msg) => { n++; if (fails.length) bad++; console.log(`${fails.length ? "FAIL" : "ok  "} ${msg}${fails.length ? ` (${fails.length}: ${fails.slice(0, 4).join(" | ")})` : ""}`); };

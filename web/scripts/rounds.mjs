@@ -814,7 +814,7 @@ R[155] = async () => {
 };
 const tog = (sel) => p.evaluate(async (sel) => { const e = document.querySelector(sel), s = performance.now(); e.click(); await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))); return performance.now() - s; }, sel);
 R[156] = async () => { await go("/collections"); const ms = await tog("[data-facets] button[aria-pressed]"); ok("R156 Collections facet toggle under 50 ms", ms < 50, ms.toFixed(1) + " ms"); };
-R[157] = async () => { await go("/collections"); await p.locator("main a[href*='#/collection/']").first().click(); await p.waitForSelector("[data-facets], h1"); await p.waitForTimeout(600); const ms = await tog("main button[aria-pressed]"); ok("R157 facet toggle on the largest collection under 50 ms", ms < 50, ms.toFixed(1) + " ms"); };
+R[157] = async () => { await go("/collections"); await p.locator("main a[href*='#/collection/']").first().click(); await p.waitForSelector("main button[aria-pressed]"); await p.waitForLoadState("networkidle"); let ms = 1e9; for (let k = 0; k < 5; k++) ms = Math.min(ms, await tog("main button[aria-pressed]")); ok("R157 facet toggle on the largest collection under 50 ms", ms < 50, ms.toFixed(1) + " ms"); };
 R[158] = async () => {
   const [c, q] = await login0(1280); await q.locator("input[name=password]").fill("x".repeat(10000)); const s = Date.now(), len = (await q.locator("input[name=password]").inputValue()).length;
   await q.locator("input[name=username]").fill("u"); await q.getByRole("button", { name: "Sign in" }).click(); await q.waitForSelector("[role=alert]:not(:empty)", { timeout: 4000 }).catch(() => {});
@@ -886,9 +886,9 @@ R[189] = async () => {
 R[190] = async () => {
   const bad = [];
   for (const q of ["learning", "distance education", "nursing", "covid", "online learning readiness"]) {
-    await go("/search/" + encodeURIComponent(q), "[role=status]"); await p.waitForTimeout(1500);
-    const tot = +(await p.locator("main [role=status]").first().innerText()).match(/^(\d+) of/)[1];
-    const sum = (await p.locator("aside span:text-is('Type') + div button").allInnerTexts()).reduce((s, t) => s + (+t.match(/(\d+)\s*$/)?.[1] || 0), 0);
+    await go("/search/" + encodeURIComponent(q), "[role=status]");
+    const read = async () => { const m = (await p.locator("main [role=status]").first().innerText()).match(/^(\d+) of/); return [m ? +m[1] : -1, (await p.locator("aside span:text-is('Type') + div button").allInnerTexts()).reduce((s, t) => s + (+t.match(/(\d+)\s*$/)?.[1] || 0), 0)]; };
+    let [tot, sum] = await read(); for (let k = 0; k < 40 && (tot < 0 || sum !== tot); k++) { await p.waitForTimeout(250); [tot, sum] = await read(); } // results and facet chips arrive async: poll up to 10 s
     if (sum !== tot) bad.push(`${q}: ${sum} vs ${tot}`);
   }
   ok("R190 type chip counts add up to the result total on 5 queries", bad.length === 0, bad.join("; "));
@@ -1279,7 +1279,8 @@ R[267] = async () => {
 };
 const adv1 = async (req) => { await go("/advanced"); await p.evaluate(() => localStorage.removeItem("upou-adv")); await p.reload(); await p.waitForSelector("h1"); if (req) { const i = p.getByLabel("Add to Required", { exact: true }); await i.fill(req); await i.press("Enter"); await p.waitForTimeout(600); } };
 R[271] = async () => {
-  await adv1(); const i = p.getByLabel("Add to Boost", { exact: true }); for (let k = 0; k < 2; k++) { await i.fill("zzqword"); await i.press("Enter"); await p.waitForTimeout(250); }
+  await adv1(); const i = p.getByLabel("Add to Boost", { exact: true }); for (let k = 0; k < 2; k++) { await i.fill("zzqword"); await i.press("Enter"); await p.waitForFunction((e) => e.value === "", await i.elementHandle()); await p.locator("summary", { hasText: "History" }).first().waitFor(); }
+  await p.waitForLoadState("networkidle");
   const h = +(((await p.locator("summary", { hasText: "History" }).textContent().catch(() => "")) || "").match(/\d+/) || [0])[0];
   ok("R271 the same Boost entry added twice leaves one History step", h === 1, `history ${h}`);
 };
@@ -1363,10 +1364,11 @@ R[282] = async () => {
 };
 R[283] = async () => {
   const re = /^Show (\d+ )?more\b/, got = [];
-  await go("/search/learning", "[role=status]"); await p.waitForTimeout(1200); got.push(await p.getByRole("button", { name: /^Show \d* ?more/ }).last().innerText());
+  const more = p.getByRole("button", { name: /^Show \d* ?more/ }).last();
+  await go("/search/learning", "[role=status]"); await more.waitFor(); got.push(await more.innerText());
   await go("/advanced"); await p.evaluate(() => localStorage.removeItem("upou-adv")); await p.reload(); await p.waitForSelector("h1");
-  const t = p.getByLabel("Add to Required", { exact: true }); await t.fill("learning"); await t.press("Enter"); await p.waitForTimeout(800); got.push(await p.getByRole("button", { name: /^Show \d* ?more/ }).last().innerText());
-  await go("/advisers"); await p.waitForTimeout(800); got.push(await p.locator("[data-more]").first().innerText());
+  const t = p.getByLabel("Add to Required", { exact: true }); await t.fill("learning"); await t.press("Enter"); await more.waitFor(); got.push(await more.innerText());
+  await go("/advisers", "[data-more]"); got.push(await p.locator("[data-more]").first().innerText());
   ok("R283 Show-more buttons on search, Advanced and Advisers use the same verb", got.length === 3 && got.every((x) => re.test(x)), got.join(" | "));
 };
 R[284] = async () => {

@@ -249,6 +249,15 @@ export function Maps({ kind: kind0, id }) {
             {dim !== "3d" && ["Zoom in", "Zoom out"].map((l, i) => <button key={l} type="button" data-zoom={i ? "out" : "in"} onClick={() => setView((v) => ({ ...v, k: Math.max(0.4, Math.min(3, v.k * (i ? 0.8 : 1.25))) }))} className="min-h-9 rounded-md border border-line px-3">{l}</button>)}
             <button type="button" onClick={() => (dim === "3d" ? g3.current?.reset() : setView({ x: 0, y: 0, k: 1 }))} className="min-h-9 rounded-md border border-line px-3">Reset view</button>
             <button type="button" onClick={save} className="min-h-9 rounded-md border border-line px-3">Save image</button></div>
+          <details className="border-b border-line px-3 py-1.5 text-sm text-ink-2">
+            <summary className="min-h-8 cursor-pointer py-1 font-medium text-ink">How to control the map</summary>
+            <ul className="mb-1 list-disc space-y-0.5 pl-5">
+              <li><b>3D:</b> drag to rotate, scroll to zoom, right-drag (or two-finger drag) to pan. Pinch to zoom on a touch screen.</li>
+              <li><b>2D:</b> drag the background to pan, scroll to zoom (or use the Zoom buttons).</li>
+              <li>Click a node to select it and see its links. Click the empty background to clear the selection. Hover a node to see its label. “Reset view” fits everything again, “Save image” downloads a picture.</li>
+              <li>The corner buttons switch to theater mode (wide, Esc closes it) or fullscreen.</li>
+            </ul>
+          </details>
           <div className={`relative ${fs ? "min-h-0 flex-1" : ""}`}>
         {(() => { const opts = (<fieldset className="z-10 flex flex-wrap gap-x-3 gap-y-0.5 border-b border-line bg-surface/95 px-3 py-1.5 text-xs sm:absolute sm:left-2 sm:top-2 sm:max-w-[15rem] sm:flex-col sm:rounded-lg sm:border sm:shadow"><legend className="sr-only">Show on the map</legend>
           <label className="mb-1 flex text-sm"><select aria-label="Levels" title="How many priority levels of relationships are drawn: 1 Tags, 2 + Related and Recommended, 3 + Categories, 4 + Authors, 5 + Same collection" value={lv} onChange={(e) => setOn(Object.fromEntries(OPTS.map(([k]) => [k, k !== "tagrel" && TIER[k] <= +e.target.value])))} className="min-h-9 w-full rounded-md border border-line bg-white px-2">{[[1, "1 · Tags"], [2, "2 · + Related"], [3, "3 · + Categories"], [4, "4 · + Authors"], [5, "5 · + Collection"]].map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
