@@ -744,7 +744,7 @@ function Overview({ a, mode, setMode }) {
       <div className={`mt-4 space-y-4 text-lg leading-8 text-ink mx-auto max-w-prose rounded-lg border border-line bg-surface px-5 py-6 shadow-sm sm:px-10 sm:py-8 text-justify hyphens-auto [text-wrap:pretty]"`}>{text.split(/\n+/).map((p, i) => <p key={i}><Emph text={p} terms={[...(a.subjects || []), ...(a.autoTags || []), ...(a.subtopics || [])]} /></p>)}</div>
       {a.diff && <div className="mt-8"><h2 className="border-b border-line pb-2 font-serif text-2xl">What sets this item apart<AiLabel /></h2>
         <NoCite what="AI comparison" className="mt-3" />
-        <div className="mt-4 space-y-4 text-lg leading-8 text-ink">{a.diff.map((p, i) => <p key={i}>{p}</p>)}</div></div>}
+        <EmphKey /><div className="mx-auto mt-4 max-w-prose space-y-4 rounded-lg border border-line bg-surface px-5 py-6 text-lg leading-8 text-ink shadow-sm hyphens-auto text-justify [text-wrap:pretty] sm:px-10 sm:py-8">{a.diff.map((p, i) => <p key={i}><Emph text={p} terms={[...(a.subjects || []), ...(a.autoTags || []), ...(a.subtopics || [])]} /></p>)}</div></div>}
     </section>
   );
 }
