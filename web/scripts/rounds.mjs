@@ -1010,8 +1010,8 @@ R[214] = async () => {
 };
 R[215] = async () => {
   await go("/search", "main input[role=combobox]"); const i = p.locator("main input[role=combobox]").first(); await i.click(); await i.pressSequentially("libre", { delay: 30 }); await i.press("Enter"); // results update on submit (no search-as-you-type), so the status is checked after Enter
-  const re = /\d+ of \d+ items for .libre/, t0 = Date.now(); let s = ""; while (Date.now() - t0 < 1000 && !re.test(s)) { s = (await p.locator("main [role=status]").allInnerTexts()).join(" | "); await p.waitForTimeout(100); }
-  ok("R215 status announces 'N of M items for libre' within 1 s of submitting", re.test(s), s.slice(0, 120));
+  const re = /\d+ results? for .libre/, t0 = Date.now(); let s = ""; while (Date.now() - t0 < 1000 && !re.test(s)) { s = (await p.locator("main [role=status]").allInnerTexts()).join(" | "); await p.waitForTimeout(100); }
+  ok("R215 status announces 'N results for “libre” (from–to)' within 1 s of submitting", re.test(s), s.slice(0, 120));
 };
 const entry = () => { const h = rf("dist/index.html"); return rf("dist/assets/" + h.match(/src="\.\/assets\/(index-[^"]+\.js)"/)[1]); };
 R[216] = () => { const e = entry(), all = fs.readdirSync(new URL("../dist/assets", import.meta.url)).filter((f) => f.endsWith(".js")).map((f) => rf("dist/assets/" + f)).join("");

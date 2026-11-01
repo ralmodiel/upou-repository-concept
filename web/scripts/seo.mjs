@@ -1,6 +1,6 @@
 // Build-time SEO: static read pages, sitemap, robots, 404 (hash routing is invisible to crawlers). SITE_URL env sets absolute URLs.
 import { readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync, existsSync } from "fs";
-import { join } from "path";
+import { join, resolve } from "path";
 export const SITE = (process.env.SITE_URL || "https://ralmodiel.github.io/upou-repository-concept").replace(/\/+$/, ""); // default is the current POC Pages URL: set SITE_URL for the UPOU deployment
 const NAME = "UPOU Repository (proof of concept)";
 const DESC = "Find theses, student papers, scholarly articles and presentations from UP Open University by topic, faculty, collection and author. Every record links to the official UPOU Repository.";
@@ -23,12 +23,14 @@ export function advScrub(people) {
 }
 
 export function seoPlugin() {
+  let outDir;
   return {
     name: "upou-seo", apply: "build",
+    configResolved(c) { outDir = resolve(c.root, c.build.outDir); }, // vite build --outDir <elsewhere> (scratch checks) writes there, not into web/dist
     transformIndexHtml: { order: "post", handler: (h, ctx) => h.replace("</title>", "</title>\n" + homeTags() + "\n" + // first-screen fonts: found late in the CSS otherwise, and their swap shifts the layout
       Object.keys(ctx.bundle || {}).filter((f) => /(lato-latin-(400|700)|merriweather-latin-(300|400))-normal-.*\.woff2$/.test(f)).map((f) => `<link rel="preload" as="font" type="font/woff2" href="./${f}" crossorigin>`).join("\n")) },
     closeBundle() {
-      const dist = join(import.meta.dirname, "..", "dist");
+      const dist = outDir;
       const arts = JSON.parse(readFileSync(join(dist, "index/articles.json"), "utf8"));
       // startup diet: the half, 1-page and 2-page AI summaries (~60% of the file) load apart (1 and 2 page: texts.json via engine.js textsP; half: half.json via S.half, on first search, AI summary or an abstract-less card)
       const PJ = join(import.meta.dirname, "..", "public/index/people.json");

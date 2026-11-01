@@ -1,6 +1,6 @@
 // Release check (run in web/): node scripts/verify.mjs [--all]
 // Builds, then checks budgets (gzip KB), sitemap vs read pages, JSON-LD, no ijodel / dead asset refs in dist.
-// --all also runs: node scripts/a11y.mjs ; node scripts/phone.mjs ; node e2e/ui.mjs (e2e needs `npx vite preview` on :4195).
+// --all also runs: node scripts/boolq-check.mjs ; cite-check.mjs ; planner-queries.mjs ; node scripts/a11y.mjs ; node scripts/phone.mjs ; node e2e/ui.mjs (e2e needs `npx vite preview` on :4195).
 // Prints "N checks, M FAIL" and exits 1 on any failure.
 import fs from "node:fs"; import path from "node:path"; import zlib from "node:zlib"; import { execSync } from "node:child_process";
 const web = path.resolve(import.meta.dirname, ".."), dist = path.join(web, "dist");
@@ -31,5 +31,5 @@ check(ld > 0 && !ldBad, `JSON-LD blocks parse (${ld} found, ${ldBad} bad)`);
 check(!brand && !assets.some((f) => fs.readFileSync(f, "latin1").includes("ijodel")), "no leftover IJODeL branding in dist");
 for (const src of fs.readdirSync(path.join(web, "src"))) for (const [, u] of fs.readFileSync(path.join(web, "src", src), "utf8").matchAll(/asset\("([^"]+)"\)/g)) if (!fs.existsSync(path.join(dist, u))) dead.push(`src/${src} -> ${u}`);
 check(!dead.length, `asset references resolve (${dead.length} dead${dead.length ? ": " + dead.slice(0, 5).join(", ") : ""})`);
-if (process.argv.includes("--all")) for (const c of ["node scripts/a11y.mjs", "node scripts/phone.mjs", "timeout 118 node e2e/ui.mjs"]) check(run(c), c);
+if (process.argv.includes("--all")) for (const c of ["node scripts/boolq-check.mjs", "node scripts/cite-check.mjs", "node scripts/planner-queries.mjs", "node scripts/a11y.mjs", "node scripts/phone.mjs", "timeout 118 node e2e/ui.mjs"]) check(run(c), c);
 fs.writeSync(1, `${n} checks, ${bad} FAIL\n`); process.exit(bad ? 1 : 0);

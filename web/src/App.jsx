@@ -1,5 +1,7 @@
 import { Emph, EmphKey } from "./emph.jsx";
-import { citeStyle, styleText, STYLES } from "./cite.js";
+import { citeStyle, styleText, STYLES, bibtex, ris, csv } from "./cite.js";
+import { hayOf, countLine, urlEntry } from "./query.js";
+import { parseBool, matchBool } from "./boolq.js";
 import { CookieConsent, openCookieSettings } from "./Consent.jsx";
 import { useSeo } from "./useSeo.js";
 import { pref, useConsent, allow } from "./consent.js";
@@ -34,6 +36,8 @@ const useHash = () => {
   }, [h]);
   return h;
 };
+// hostile hashes: no control characters, and at most 4000 chars (a planner's Boolean string is read whole; the engine gets <= 300)
+export const qclean = (s) => s.replace(/[\u0000-\u001f\u007f]/g, " ").slice(0, 4000);
 export const dec = (s) => { try { return decodeURIComponent(s); } catch { return s; } }; // hostile hashes (%E0%A4%A) must not throw
 export const Link = ({ to, className = "", children, ...rest }) => <a href={"#" + to} className={className} {...rest}>{children}</a>;
 export const by = (a) => a.authors.join("; ");
@@ -62,7 +66,8 @@ export const parseQuery = (q) => {
     if (au) { o.author = au.replace(/"/g, "").toLowerCase(); o.ops.push(["author: " + au.replace(/"/g, ""), m]); return " "; }
     o.y = [+y1, +(y2 || y1)].sort((a, b) => a - b); o.ops.push(["year: " + (o.y[0] === o.y[1] ? o.y[0] : o.y.join("–")), m]); return " ";
   }).replace(/\s+/g, " ").trim();
-  return { ...o, text };
+  // bool: the query for the Boolean predicate (boolq.js), with only author: and year: taken out
+  return { ...o, text, bool: (q || "").replace(/\bauthor:("[^"]+"|\S+)|\byear:\d{4}(?:-\d{4})?/giu, " ") };
 };
 export const clip = (t, n) => (t.length > n ? t.slice(0, n).replace(/\s\S*$/, "") + "…" : t);
 
@@ -308,6 +313,15 @@ function suggestions(q, fix) {
     ...S.articles.filter((a, i) => terms.every((w) => low[i].includes(w))).slice(0, 4).map((a) => ({ kind: "item", label: a.title, to: "/read/" + a.id })),
     { kind: "search", label: `Search all for “${q.trim()}”`, to: "/search/" + encodeURIComponent(q.trim()) },
   ];
+}
+const download = (name, text, type) => { const u = URL.createObjectURL(new Blob([text], { type })), a = document.createElement("a"); a.href = u; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(u), 1000); };
+// Export a whole result list (all pages, not only the ones shown); each record keeps its handle (20.500.13073/<n>) as stable id
+export function ExportBtns({ rows, name = "UPOU-results" }) {
+  const b = "min-h-10 rounded-md border border-line bg-surface px-3 text-sm text-link hover:bg-navy-soft";
+  return rows.length > 0 && <span role="group" aria-label={`Export all ${rows.length} results`} className="flex flex-wrap items-center gap-1.5 text-sm"><span className="text-ink-3">Export all:</span>
+    <button type="button" className={b} onClick={() => download(name + ".ris", ris(rows), "application/x-research-info-systems")}>RIS</button>
+    <button type="button" className={b} onClick={() => download(name + ".bib", bibtex(rows), "application/x-bibtex")}>BibTeX</button>
+    <button type="button" className={b} onClick={() => download(name + ".csv", csv(rows), "text/csv")}>CSV</button></span>;
 }
 function SearchBox({ value, onChange, placeholder, className = "", btn = "bg-action-fill hover:bg-action-2-fill" }) {
   const [open, setOpen] = useState(false), [cur, setCur] = useState(-1), [fix, setFix] = useState(null), m = useModel(), sid = useId();
@@ -583,28 +597,34 @@ function Chip({ on, onClick, children }) {
   return <button type="button" aria-pressed={on} onClick={onClick} className={`min-h-10 rounded-full border px-3.5 py-1.5 text-sm transition ${on ? "border-action bg-action-fill text-white" : "border-line bg-surface text-ink-2 hover:border-action-2 hover:text-action"}`}>{on && <Icon m="check" w={2.5} className="mr-1 inline h-4 w-4 align-[-2px]" />}{children}</button>;
 }
 const kept = {}; // filters per search query, so Back from an item restores them (memory only)
-function Search({ q0 }) {
+function Search({ q0, y0 }) {
   const K = kept[q0 || ""] || {};
   const all = window.__S.articles;
   // round 47: derived from the 785 items only, so computed once per data load, not on every keystroke/click
   const { years, cats, cols, facs } = useMemo(() => ({ years: [...new Set(all.map((a) => a.year))].sort((x, y) => x - y), cats: [...new Set(all.flatMap((a) => a.categories))].sort(), cols: new Map(all.map((a) => [colKey(a), a.collection])), facs: [...new Set(all.map((a) => a.faculty).filter(Boolean))].sort() }), [all]);
   const [q, setQ] = useState(q0 || ""), [base, setBase] = useState(null);
   const [scope, setScope] = useState(K.scope || SCOPES.flatMap((s) => s[0].split(","))), [cat, setCat] = useState(K.cat || []), [subj, setSubj] = useState(K.subj || []);
-  const [from, setFrom] = useState(K.from || years[0]), [to, setTo] = useState(K.to || years.at(-1)), [author, setAuthor] = useState(K.author || ""), [sort, setSort] = useState(K.sort || "relevance"), [view, setView] = useState("grid");
+  const clampY = (y, d) => (y ? Math.min(Math.max(y, +years[0]), +years.at(-1)) : +d), [y1, y2] = [clampY(y0?.from, years[0]), clampY(y0?.to, years.at(-1))].sort((x, y) => x - y);
+  const [from, setFrom] = useState(K.from || y1), [to, setTo] = useState(K.to || y2), [author, setAuthor] = useState(K.author || ""), [sort, setSort] = useState(K.sort || "relevance"), [view, setView] = useState("grid");
   const [open, setOpen] = useState(() => matchMedia("(min-width:1024px)").matches), [allSubj, setAllSubj] = useState(false), [last, setLast] = useState("");
   const [err, setErr] = useState(false);
-  const run = async (raw) => { const text = parseQuery(raw).text; setErr(false); try { setBase(text ? await searchArticles(text, { k: 200, fields: scope.join(",").split(",") }) : all.map((a) => ({ ...a, matched: [] }))); } catch { setErr(true); setBase([]); } };
+  const run = async (raw) => { const text = parseQuery(raw).text.slice(0, 300); setErr(false); try { setBase(text ? await searchArticles(text, { k: 200, fields: scope.join(",").split(",") }) : (await Promise.all([window.__S.textsP, window.__S.half()]), all.map((a) => ({ ...a, matched: [] })))); } catch { setErr(true); setBase([]); } };
   useEffect(() => { setQ(q0 || ""); run(q0 || ""); setShown(PAGE); }, [q0, scope]);
   const ms = useModel().s; useEffect(() => { if (ms === "ready" && q0) run(q0); }, [ms]); // re-rank once the vectors are in
   const [col, setCol] = useState(K.col || ""), [fac, setFac] = useState(K.fac || ""), [typ, setTyp] = useState(K.typ || []), [shown, setShown] = useState(PAGE);
   kept[q0 || ""] = { scope, cat, subj, from, to, author, sort, col, fac, typ };
   const au = author.trim().toLowerCase(), pq = parseQuery(q0);
-  const hay = (a) => (a.title + " " + a.abstract + " " + (a.half || "") + " " + (a.one || "") + " " + (a.two || "")).toLowerCase();
-  // A quoted phrase with no literal match is not a dead end: keep the words' ranking (the model ranks by meaning) and say so.
-  const soft = pq.phrases.length > 0 && !!base && !base.some((a) => pq.phrases.every((x) => hay(a).includes(x)));
-  const P = { op: (a) => (!pq.y || (a.year >= pq.y[0] && a.year <= pq.y[1])) && (!pq.author || by(a).toLowerCase().includes(pq.author)) && (!pq.phrases.length && !pq.neg.length || ((h) => (soft || pq.phrases.every((x) => h.includes(x))) && !pq.neg.some((x) => new RegExp("\\b" + x.replace(/[^\w-]/g, "") + "\\b").test(h)))(hay(a))), year: (a) => a.year >= from && a.year <= to, au: (a) => !au || (by(a) + " " + a.advisers.join(" ")).toLowerCase().includes(au), subj: (a) => !subj.length || subj.every((s) => a.subjects.includes(s)), collection: (a) => !col || colKey(a) === col, fac: (a) => !fac || a.faculty === fac, typ: (a) => !typ.length || typ.includes(a.type), cat: (a) => !cat.length || a.categories.some((c) => cat.includes(c)) };
+  // The count is the Boolean predicate (boolq.js) over every item, not a top-k cut: hybrid-ranked matches first, then the rest by year.
+  const bq = useMemo(() => parseBool(pq.bool), [q0]);
+  const inB = useMemo(() => base && bq.ast ? new Set(all.filter((a) => matchBool(bq.ast, hayOf(a, scope))).map((a) => a.id)) : null, [base, bq]);
+  // Plain words that no item has all of (a question, say) are not a dead end: keep the ranking by meaning and say so.
+  // A query with operators or quotes stays strict: zero is zero, and the count says so.
+  const soft = !!inB && bq.plain && inB.size === 0 && base.length > 0;
+  const src = useMemo(() => { if (!inB || soft) return base; const got = new Set(base.map((a) => a.id));
+    return [...base.filter((a) => inB.has(a.id)), ...all.filter((a) => inB.has(a.id) && !got.has(a.id)).sort((x, y) => y.year - x.year).map((a) => ({ ...a, matched: [] }))]; }, [base, inB, soft]);
+  const P = { op: (a) => (!pq.y || (a.year >= pq.y[0] && a.year <= pq.y[1])) && (!pq.author || by(a).toLowerCase().includes(pq.author)), year: (a) => a.year >= from && a.year <= to, au: (a) => !au || (by(a) + " " + a.advisers.join(" ")).toLowerCase().includes(au), subj: (a) => !subj.length || subj.every((s) => a.subjects.includes(s)), collection: (a) => !col || colKey(a) === col, fac: (a) => !fac || a.faculty === fac, typ: (a) => !typ.length || typ.includes(a.type), cat: (a) => !cat.length || a.categories.some((c) => cat.includes(c)) };
   // Facet lists show only what the other filters leave; the facet clicked last also ignores its own filter so more can be picked from it.
-  const match = (skip) => (base || []).filter((a) => Object.entries(P).every(([k, f]) => k === skip || f(a)));
+  const match = (skip) => (src || []).filter((a) => Object.entries(P).every(([k, f]) => k === skip || f(a)));
   const pre = match("cat"), res = pre.filter(P.cat);
   const list = sort === "newest" || (sort === "relevance" && !q0) ? [...res].sort((x, y) => y.year - x.year) : sort === "oldest" ? [...res].sort((x, y) => x.year - y.year) : sort === "title" ? [...res].sort((x, y) => x.title.localeCompare(y.title)) : res;
   const count = {}; pre.forEach((a) => a.categories.forEach((c) => { count[c] = (count[c] || 0) + 1; }));
@@ -621,7 +641,7 @@ function Search({ q0 }) {
   const toggleSave = () => { store("upou-saved", isSaved ? saved().filter((x) => x !== q0) : [q0, ...saved()].slice(0, 20)); bump((n) => n + 1); };
   const authors = [...new Set(match("au").flatMap((a) => a.authors))].sort();
   const shownCats = last === "cat" || !cat.length ? cats.filter((c) => count[c] || cat.includes(c)) : cats.filter((c) => match("").some((a) => a.categories.includes(c)) || cat.includes(c));
-  const yrs = new Set(match("year").map((a) => a.year)), shownYears = years.filter((y) => yrs.has(y) || y === from || y === to);
+  const yrs = new Set(match("year").map((a) => a.year)), shownYears = years.filter((y) => yrs.has(y) || +y === +from || +y === +to);
   const active = [...cat.map((c) => [c, () => tog(cat, setCat, c, "cat")]), ...subj.map((s) => [s, () => tog(subj, setSubj, s, "subj")]), ...(au ? [["Author: " + author, () => setAuthor("")]] : []), ...typ.map((t) => [t, () => tog(typ, setTyp, t, "typ")]), ...(fac ? [[fac, () => setFac("")]] : []), ...(col ? [[cols.get(col), () => setCol("")]] : []), ...(from > years[0] || to < years.at(-1) ? [[`${from}–${to}`, () => { setFrom(years[0]); setTo(years.at(-1)); }]] : [])];
   const reset = () => { setCat([]); setSubj([]); setAuthor(""); setCol(""); setFac(""); setTyp([]); setFrom(years[0]); setTo(years.at(-1)); setScope(SCOPES.flatMap((s) => s[0].split(","))); };
   const lab = "mb-2 block text-xs font-bold uppercase tracking-wide text-ink-3";
@@ -654,13 +674,15 @@ function Search({ q0 }) {
         </aside>
         <div className="min-w-0">
           <div className="mb-4 flex flex-wrap items-center gap-2">
-            <p className="mr-auto text-sm text-ink-2" role="status" aria-atomic="true"><b>{list.length}</b> of {all.length} items{q0 ? <> for “{q0}”</> : ""}<span className="sr-only">{active.length ? `, ${active.length} filter${active.length > 1 ? "s" : ""}` : ""}, sorted by {{ relevance: q0 ? "relevance" : "default order", newest: "newest first", oldest: "oldest first", title: "title A to Z" }[sort]}</span></p>
+            <p className="mr-auto text-sm text-ink-2" role="status" aria-atomic="true">{q0 ? <><b>{list.length}</b>{countLine(list.length, q0, from, to).replace(/^\d+/, "")}</> : <><b>{list.length}</b> of {all.length} items</>}<span className="sr-only">{active.length ? `, ${active.length} filter${active.length > 1 ? "s" : ""}` : ""}, sorted by {{ relevance: q0 ? "relevance" : "default order", newest: "newest first", oldest: "oldest first", title: "title A to Z" }[sort]}</span></p>
             <select value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort" className="min-h-10 rounded-md border border-line bg-surface px-2 py-1.5 text-sm"><option value="relevance">{q0 ? "Most relevant" : "Newest first (default)"}</option><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="title">Title A–Z</option></select>
             {q0 && <button type="button" aria-pressed={!!isSaved} onClick={toggleSave} title={allow("prefs") ? "Saved on this device" : "Saved for this visit; allow search history and settings in Cookie settings to keep it"} className="min-h-10 rounded-md border border-line bg-surface px-3 text-sm text-link hover:bg-navy-soft disabled:opacity-40">{isSaved ? "★ Saved" : "☆ Save search"}</button>}
             <ViewToggle view={view} setView={setView} />
+            {q0 && <ExportBtns rows={list} />}
           </div>
+          {bq.note && <p role="status" className="mb-3 text-sm text-ink-2">{bq.note}</p>}
           {pq.ops.length > 0 && <div className="mb-3 flex flex-wrap items-center gap-2 text-sm" aria-label="Query operators"><span className="text-ink-3">Query:</span>{pq.ops.map(([l, raw]) => <Link key={raw} to={without(raw)} aria-label={"Remove " + l} className="rounded-full border border-action-2/40 bg-crimson-soft px-3 py-1 text-link hover:underline">{l} ×</Link>)}</div>}
-          {soft && <p role="status" className="mb-3 text-sm text-ink-2">No item contains that exact phrase, so these are the closest by meaning{ms === "ready" ? " (ranked with the language model)" : ""}.</p>}
+          {soft && <p role="status" className="mb-3 text-sm text-ink-2">No item contains all of these words, so these are the closest by meaning{ms === "ready" ? " (ranked with the language model)" : ""}.</p>}
           {!q0 && (saved().length > 0 || recents().length > 0) && <div className="mb-4 space-y-2 text-sm">{[["Saved searches", saved(), "upou-saved"], ["Recent searches", recents(), "upou-recent"]].map(([h, l, k]) => l.length > 0 && <p key={k} className="flex flex-wrap items-center gap-2"><span className="text-ink-3">{h}:</span>{l.map((x) => <span key={x} className="inline-flex items-center"><Link to={"/search/" + encodeURIComponent(x)} className="rounded-full bg-navy-soft px-3 py-0.5 text-navy hover:underline">{x}</Link>{k === "upou-recent" && <button type="button" aria-label={"Remove recent search " + x} onClick={() => { store(k, l.filter((y) => y !== x)); bump((n) => n + 1); }} className="inline-flex min-h-9 min-w-9 items-center justify-center text-link">×</button>}</span>)}<button type="button" onClick={() => { store(k, []); bump((n) => n + 1); }} className="min-h-9 px-1 text-link hover:underline">{k === "upou-saved" ? "Clear saved" : "Clear history"}</button></p>)}</div>}
           {active.length > 0 && <div className="mb-4 flex flex-wrap gap-2">{active.map(([l, f]) => <button key={l} type="button" onClick={f} className="rounded-full bg-navy-soft px-3 py-1 text-sm text-navy hover:bg-sky/50" aria-label={"Remove filter " + l}>{l} ×</button>)}</div>}
           {fix && <p className="mb-4 rounded-md bg-navy-soft px-4 py-2 text-sm">Did you mean <Link to={"/search/" + encodeURIComponent(fix)} className="font-bold text-link underline">{fix}</Link>?</p>}
@@ -900,11 +922,12 @@ export default function App() {
   useEffect(() => { if (consent) syncSW(); }, [consent?.prefs]); // undecided (first visit or a choice over 12 months old, R278): keep any offline copy until the visitor chooses
   useEffect(() => { const f = (e) => setUpd(() => e.detail), k = (e) => e.key === "Escape" && setUpd(null); addEventListener("upou-update", f); addEventListener("keydown", k); return () => { removeEventListener("upou-update", f); removeEventListener("keydown", k); }; }, []); // R294: Esc dismisses the update bar
   // the semantic model is a third-party download: only with consent, and only once someone searches (box focus or a search route)
-  useEffect(() => { if (state === "ok" && consent?.model && route.startsWith("/search/")) startModel(true); }, [state, consent?.model, route]);
-  const parts = route.split("/").filter(Boolean);
+  useEffect(() => { if (state === "ok" && consent?.model && /^\/search[/?]/.test(route)) startModel(true); }, [state, consent?.model, route]);
+  const qi = route.indexOf("?"), parts = (qi < 0 ? route : route.slice(0, qi)).split("/").filter(Boolean);
+  const entry = qi < 0 ? null : urlEntry(route.slice(qi + 1)); // #/search?query=… and #/advanced?query=… (the Topic Planner's URLs)
   const art = state === "ok" && parts[0] === "read" ? window.__S.byId[parts[1]] : null;
   const PAGE = { search: "Search", advanced: "Advanced search", maps: "Maps", privacy: "Privacy notice", about: "About", collections: "Collections", topics: "Topics", advisers: "Advisers by topic", list: "View lists" };
-  const seoT = art ? art.title : PAGE[parts[0]] ? (parts[0] === "search" && parts[1] ? `Search: ${parts[1].replace(/%[0-9a-f]{2}/gi, dec)}` : PAGE[parts[0]]) : "";
+  const seoT = art ? art.title : PAGE[parts[0]] ? (parts[0] === "search" && (parts[1] || entry?.q) ? `Search: ${(parts[1] ? parts[1].replace(/%[0-9a-f]{2}/gi, dec) : qclean(entry.q)).slice(0, 80)}` : PAGE[parts[0]]) : "";
   useSeo(seoT ? seoT + " | UPOU Repository concept" : "UPOU Repository concept: theses, papers, articles and presentations", art ? (art.abstract || art.half || "").replace(/\s+/g, " ").slice(0, 155) : "Search and browse theses, student papers, scholarly articles and presentations from UP Open University by faculty, collection, type and adviser. Every record links to the official UPOU Repository.");
   // R205: a page change moves focus to its h1 (not on first load, not while typing in a search, not when focus is already inside the page)
   const pageKey = state === "ok" ? parts.slice(0, parts[0] === "search" ? 1 : 2).join("/") : "", seen = useRef(null);
@@ -925,7 +948,7 @@ export default function App() {
       {!online && <p role="status" className="bg-amber-100 px-4 py-2 text-center text-sm font-medium text-amber-950 print:hidden">You are offline. Pages already opened still work; new search data or items may not load until you reconnect.</p>}
       <main id="main" tabIndex={-1} className={parts[0] === undefined || state !== "ok" ? "min-h-[60vh]" : ["search", "advanced", "maps"].includes(parts[0]) ? "mx-auto max-w-6xl min-[1536px]:max-w-[88rem] px-4 py-8 sm:px-8" : "mx-auto max-w-5xl px-4 py-8"}>
         {state === "loading" && parts[0] === "collections" ? <SkelCols /> : state === "loading" ? <div className="mx-auto max-w-6xl min-[1536px]:max-w-[88rem] p-8" role="status" aria-label="Loading the repository index"><div className="skeleton h-64" /><div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-5">{[0, 1, 2, 3, 4].map((i) => <div key={i} className="skeleton aspect-[3/4]" />)}</div></div> : state !== "ok" ? <div className="p-8" role="alert"><p>{state}</p>{!online && <p className="mt-1 text-ink-2">You are offline.</p>}<button type="button" onClick={() => location.reload()} className="mt-3 min-h-11 rounded-full bg-action-fill px-5 text-white">Retry</button></div> :
-          <Boundary key={route}>{parts[0] && !ROUTES.includes(parts[0]) ? <NotFound route={route} /> : parts[0] === "privacy" ? <Suspense fallback={LegalFallback}><Privacy /></Suspense> : parts[0] === "about" ? <Suspense fallback={LegalFallback}><About /></Suspense> : parts[0] === "read" ? <Reader id={parts[1]} at={parts[2] === "p" && /^\d+$/.test(parts[3] || "") ? [parts[3], dec(parts[4] || "")] : null} sec={parts[2] === "s" && /^(overview|faq|related)$/.test(parts[3] || "") ? parts[3] : null} /> : parts[0] === "list" ? <Suspense fallback={LegalFallback}>{parts[1] === "share" ? <SharedList name={parts[2]} ids={parts[3]} /> : <MyList lid={parts[1]} />}</Suspense> : parts[0] === "collections" ? <Collections pre={parts[1]} /> : parts[0] === "topics" ? <Topics /> : parts[0] === "advisers" ? <Gate><Suspense fallback={AdvFallback}><Advisers /></Suspense></Gate> : parts[0] === "adviser" ? <Gate><Suspense fallback={AdvFallback}><AdviserPage id={dec(parts[1] || "")} /></Suspense></Gate> : parts[0] === "advanced" ? <Suspense fallback={<><h1 className="font-serif text-3xl">Advanced search</h1><AdvIntro /><div className="skeleton mt-4 h-[85vh]" role="status" aria-label="Loading" /></>}><Advanced share={parts[1] === "s" ? parts[2] : null} /></Suspense> : parts[0] === "maps" ? <Suspense fallback={<><h1 className="font-serif text-3xl">Relationship map</h1><MapsIntro /><div className="skeleton mt-4 h-[85vh]" role="status" aria-label="Loading" /></>}><Gate on={parts[1] === "adviser"}><Maps kind={parts[1]} id={parts[2] && dec(parts[2])} /></Gate></Suspense> : parts[0] === "search" ? <Search q0={dec(parts[1] || "")} /> :
+          <Boundary key={route}>{parts[0] && !ROUTES.includes(parts[0]) ? <NotFound route={route} /> : parts[0] === "privacy" ? <Suspense fallback={LegalFallback}><Privacy /></Suspense> : parts[0] === "about" ? <Suspense fallback={LegalFallback}><About /></Suspense> : parts[0] === "read" ? <Reader id={parts[1]} at={parts[2] === "p" && /^\d+$/.test(parts[3] || "") ? [parts[3], dec(parts[4] || "")] : null} sec={parts[2] === "s" && /^(overview|faq|related)$/.test(parts[3] || "") ? parts[3] : null} /> : parts[0] === "list" ? <Suspense fallback={LegalFallback}>{parts[1] === "share" ? <SharedList name={parts[2]} ids={parts[3]} /> : <MyList lid={parts[1]} />}</Suspense> : parts[0] === "collections" ? <Collections pre={parts[1]} /> : parts[0] === "topics" ? <Topics /> : parts[0] === "advisers" ? <Gate><Suspense fallback={AdvFallback}><Advisers /></Suspense></Gate> : parts[0] === "adviser" ? <Gate><Suspense fallback={AdvFallback}><AdviserPage id={dec(parts[1] || "")} /></Suspense></Gate> : parts[0] === "advanced" ? <Suspense fallback={<><h1 className="font-serif text-3xl">Advanced search</h1><AdvIntro /><div className="skeleton mt-4 h-[85vh]" role="status" aria-label="Loading" /></>}><Advanced share={parts[1] === "s" ? parts[2] : null} entry={entry?.q ? { ...entry, q: qclean(entry.q) } : null} /></Suspense> : parts[0] === "maps" ? <Suspense fallback={<><h1 className="font-serif text-3xl">Relationship map</h1><MapsIntro /><div className="skeleton mt-4 h-[85vh]" role="status" aria-label="Loading" /></>}><Gate on={parts[1] === "adviser"}><Maps kind={parts[1]} id={parts[2] && dec(parts[2])} /></Gate></Suspense> : parts[0] === "search" ? <Search q0={parts[1] ? qclean(dec(parts[1])) : qclean(entry?.q || "")} y0={entry} /> :
           ["cat", "sub", "year", "collection", "faculty", "type", "tag"].includes(parts[0]) ? <Group key={route} kind={parts[0]} id={parts[1]} pre={parts[2]} /> : <Browse />}</Boundary>}
       </main>
       <footer className="mt-10 bg-ink-fill text-sm text-white/80 print:hidden">

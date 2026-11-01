@@ -22,7 +22,7 @@ async function visit(c, withdraw, undecided) {
   await p.getByRole("button", { name: /Add to view list|\+/ }).first().click().catch(() => {}); await p.waitForTimeout(300);
   await p.getByLabel("New list name").fill("Mine", { timeout: 3000 }).then(() => p.getByLabel("New list name").press("Enter")).catch(() => {});
   await p.goto(U + "/"); const box = p.getByLabel("Search items").first(); await box.focus(); await box.fill("libre"); await p.keyboard.press("Enter");
-  await p.waitForSelector("text=items for").catch(() => {});
+  await p.waitForSelector("text=results for").catch(() => {});
   await p.waitForFunction(() => !document.querySelector("[data-model=loading]"), null, { timeout: 120000 }).catch(() => {});
   await p.waitForTimeout(1500);
   if (withdraw) { // withdraw everything through the real settings dialog

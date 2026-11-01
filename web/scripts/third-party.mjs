@@ -32,7 +32,7 @@ for (const [name, pat] of [["jsDelivr", /cdn\.jsdelivr\.net/], ["Hugging Face", 
   if (name === "jsDelivr" && self) ok("jsDelivr blocked: self-hosted model still ready", state === "ready", state);
   else ok(`${name} blocked: keyword-only notice`, state === "failed", state);
   await p.getByLabel("Search items").first().fill("libre"); await p.keyboard.press("Enter");
-  ok(`${name} blocked: keyword results still shown`, await p.waitForSelector("text=items for", { timeout: 15000 }).then(() => true).catch(() => false));
+  ok(`${name} blocked: keyword results still shown`, await p.waitForSelector("text=results for", { timeout: 15000 }).then(() => true).catch(() => false));
   await c.close();
 }
 { const { readdirSync } = await import("fs"), d = new URL("../dist/", import.meta.url), hits = []; // R229: nothing in built html/css may pre-contact a host

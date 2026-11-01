@@ -3,7 +3,9 @@ import { createPortal } from "react-dom";
 import { searchArticles } from "./engine.js";
 import { pref, allow } from "./consent.js";
 import { suggest } from "./suggest.js";
-import { AdvIntro, Icon, Link, Pub, Card, AddBtn, ViewToggle, ResultCollections, colKey } from "./App.jsx";
+import { parseBool, matchBool, toChips } from "./boolq.js";
+import { hayOf, countLine } from "./query.js";
+import { AdvIntro, ExportBtns, Icon, Link, Pub, Card, AddBtn, ViewToggle, ResultCollections, colKey } from "./App.jsx";
 
 // ---- the query (four areas of filter chips), shared with the Maps page and kept in localStorage ----
 export const AREAS = [
@@ -85,6 +87,16 @@ const openShared = async (code) => {
     commit(clean(v), "Opened a shared search. Undo goes back to your own.", "Opened a shared search", true);
   } catch { note = "That share link is broken or too long."; noteUndo = false; subs.forEach((f) => f()); }
   history.replaceState(null, "", "#/advanced");
+};
+// The Topic Planner's #/advanced?query=…&from=&to=: the Boolean string becomes chips (toChips), years outside the range
+// become Exclude year chips, and the note gives the string's own count (the Boolean predicate over every item).
+const openQuery = async ({ q, from, to }) => {
+  const S = window.__S, b = parseBool(q), ys = [...new Set(S.articles.map((a) => +a.year))].sort((x, y) => x - y);
+  const [y1, y2] = [from || ys[0], to || ys.at(-1)].sort((x, y) => x - y), areas = { ...empty(), ...toChips(b.ast) };
+  areas.exc = [...areas.exc, ...ys.filter((y) => y < y1 || y > y2).map((y) => ({ k: "year", v: String(y), l: String(y) }))];
+  await Promise.all([S.textsP, S.half()]);
+  const n = S.articles.filter((a) => +a.year >= y1 && +a.year <= y2 && matchBool(b.ast, hayOf(a))).length;
+  commit(clean(areas), `${countLine(n, q, y1, y2)}. The chips show how the search was read: edit them to refine it.${b.note ? " " + b.note : ""}`, "Opened a planner search", true);
 };
 export const chipCount = (areas) => AREAS.reduce((n, [k]) => n + areas[k].length, 0);
 
@@ -218,18 +230,19 @@ function Lookup({ F, area, close }) {
     </div>, document.body);
 }
 
-export function Advanced({ share }) {
+export function Advanced({ share, entry }) {
   const { areas, past, future, note, noteUndo, mode } = useAdv(), F = useMemo(facets, []);
   const [words, setWords] = useState(new Map()), [lookup, setLookup] = useState(null), [sort, setSort] = useState("relevance"), [view, setView] = useState("grid"), [qa, setQa] = useState("off"), [shown, setShown] = useState(24), [skip, setSkip] = useState([]);
   const cache = useRef(new Map()), [link, setLink] = useState("");
   useEffect(() => { if (share) openShared(share); }, [share]);
+  useEffect(() => { if (entry) openQuery(entry); }, [entry?.q]);
   // without the prefs consent the setup lives in memory only: warn before a reload or close loses a long one
   useEffect(() => { const f = (e) => { if (!allow("prefs") && chipCount(adv.areas) >= 5) e.preventDefault(); }; addEventListener("beforeunload", f); return () => removeEventListener("beforeunload", f); }, []);
   // The address bar always holds the current search (replaceState: no history entry, no route change), so the page URL is the share link.
   const seen = useRef(false);
   useEffect(() => {
     if (chipCount(areas)) seen.current = true;
-    if (share && !seen.current) return; // a shared link is still being opened; once chips have shown, an empty list means the user cleared them
+    if ((share || entry) && !seen.current) return; // a shared link (or a planner query) is still being opened; once chips have shown, an empty list means the user cleared them
     let off = false;
     (async () => { const h = chipCount(areas) ? "#/advanced/s/" + await shareCode() : "#/advanced"; if (!off && location.hash.startsWith("#/advanced") && location.hash !== h) history.replaceState(null, "", location.href.split("#")[0] + h); })();
     return () => { off = true; };
@@ -242,7 +255,12 @@ export function Advanced({ share }) {
   useEffect(() => {
     let live = true;
     Promise.all(wordsKey.split("|").filter(Boolean).map(async (v) => {
-      if (!cache.current.has(v)) { const r = (await searchArticles(v, { k: 200 })).filter((a) => a.matched.length); cache.current.set(v, Object.assign(new Map(r.map((a, i) => [a.id, 1 - i / Math.max(r.length, 1)])), { passages: new Map(r.filter((a) => a.passage).map((a) => [a.id, a.passage])) })); }
+      if (!cache.current.has(v)) {
+        // a chip with Boolean syntax ("exact phrase", prefix*, OR, NOT) matches by the Boolean predicate over every item; plain words as before
+        const r0 = await searchArticles(v.slice(0, 300), { k: 200 }), b = parseBool(v), keep = b.plain ? null : new Set(window.__S.articles.filter((a) => matchBool(b.ast, hayOf(a))).map((a) => a.id));
+        const r = r0.filter((a) => keep ? keep.has(a.id) : a.matched.length), m = new Map(r.map((a, i) => [a.id, 1 - i / Math.max(r.length, 1)]));
+        keep?.forEach((id) => m.has(id) || m.set(id, 0));
+        cache.current.set(v, Object.assign(m, { passages: new Map(r.filter((a) => a.passage).map((a) => [a.id, a.passage])) })); }
       return [v, cache.current.get(v)];
     })).then((e) => live && setWords(new Map(e)));
     return () => { live = false; };
@@ -309,6 +327,7 @@ export function Advanced({ share }) {
       {(note || link) && <p role="status" className="mt-3 break-all text-sm text-ink-3">{note} {noteUndo && <button type="button" onClick={() => undo()} className="ml-1 min-h-8 rounded-full bg-action-fill px-3 font-medium text-white">Undo</button>} {link === "copied" ? "The search link is copied to your clipboard. It is also in the address bar." : link.startsWith("manual:") ? <>Could not copy automatically. The link is in the address bar: <span className="select-all">{link.slice(7)}</span></> : null}</p>}
       <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-line pt-4">
         <p className="text-sm"><b>{list.length}</b> item{list.length === 1 ? "" : "s"}{total > 0 && <span className="text-ink-3"> · {strict} match all required · {mode === "one" ? " · each has at least one Additional filter" : ` · +${viaExpand} via Expand`}</span>}</p>
+        <ExportBtns rows={list} name="UPOU-advanced" />
       </div>
       <div className="mt-4 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]"><div className="min-w-0">
         {list.length === 0 ? <p className="rounded-xl border border-dashed border-line p-8 text-center text-ink-2">No item fits all of this. Move a Required filter to Expand, or remove an Exclude.</p>
